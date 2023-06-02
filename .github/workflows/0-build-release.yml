@@ -66,20 +66,20 @@ jobs:
             ls -l "$staging.tar.xz"
           fi
 
-    - name: Create source archive (zip)
-      uses: deep-soft/zip-release@v2
-      with:
-        type: 'zip'
-        filename: '${{ env.TAG_NAME }}-${{ env.VERSION }}.zip'
-        directory: '.'
-        path: '.'
-        exclusions: '*.git* /*node_modules/* .editorconfig'
-        # archive name is ${{ env.ZIP_RELEASE_ARCHIVE }}
-        
-    - name: print env value
-      shell: bash
-      run: |
-        echo "env.ZIP_RELEASE_ARCHIVE=${{ env.ZIP_RELEASE_ARCHIVE }}"
+      - name: Create source archive (zip)
+        uses: deep-soft/zip-release@v2
+        with:
+          type: 'zip'
+          filename: '${{ env.TAG_NAME }}-${{ env.VERSION }}.zip'
+          directory: '.'
+          path: '.'
+          exclusions: '*.git* /*node_modules/* .editorconfig'
+          # archive name is ${{ env.ZIP_RELEASE_ARCHIVE }}
+
+      - name: print env value
+        shell: bash
+        run: |
+          echo "env.ZIP_RELEASE_ARCHIVE=${{ env.ZIP_RELEASE_ARCHIVE }}"
 
       - name: Publish src archive
         continue-on-error: true
