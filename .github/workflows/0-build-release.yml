@@ -1,5 +1,5 @@
 #2023-06-02 17:00
-name: App / Build
+name: Build - release
 
 on:
   workflow_dispatch:
