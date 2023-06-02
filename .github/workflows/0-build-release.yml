@@ -1,4 +1,4 @@
-#2023-06-02 18:40
+#2023-06-03 02:30
 name: 0 - Build - release
 
 on:
@@ -145,24 +145,26 @@ jobs:
           ls -l ./signed-apk/
 
       - name: Sign app APK
-        uses: deep-soft/sign-android-release@master
+        uses: deep-soft/sign-android-release-apk@master
         continue-on-error: true
         if: env.ANDROID_SIGNING_KEY != null
         id: sign_apk
         with:
-          releaseDirectory: ./signed-apk
-          signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
-          alias: ${{ secrets.ANDROID_ALIAS }}
+          releaseDir: ./signed-apk
+          signingKey: ${{ secrets.ANDROID_SIGNING_KEY }}
+          keyAlias: ${{ secrets.ANDROID_ALIAS }}
           keyStorePassword: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
           keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        env:
-          # override default build-tools version (29.0.3) -- optional
-          BUILD_TOOLS_VERSION: "30.0.2"
+          buildToolsVersion: 33.0.0
 
       - name: List ./signed-apk/
         shell: bash
         run: |
           ls -l ./signed-apk/
+          echo "signedFile0=" ${{steps.sign_apk.outputs.signedFile0}}
+          echo "signedFile1=" ${{steps.sign_apk.outputs.signedFile1}}
+          echo "signedFile2=" ${{steps.sign_apk.outputs.signedFile2}}
+
 
       - name: Upload Artifact apk
         if: ${{ inputs.upload_artifacts }}
