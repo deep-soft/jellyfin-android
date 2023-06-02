@@ -3,6 +3,13 @@ name: 0 - Build - release
 
 on:
   workflow_dispatch:
+    inputs:
+      upload_artifacts:
+        description: Upload also the artifacts
+        type: boolean
+        required: true
+        default: false
+  
 #  pull_request:
 #    paths-ignore:
 #      - '.idea/**'
@@ -115,6 +122,7 @@ jobs:
           ls -l build/gh-app-publish/
 
       - name: Upload Artifact apk
+        if: ${{ inputs.upload_artifacts }}
         continue-on-error: true
         uses: deep-soft/upload-artifact@v3
         with:
@@ -131,13 +139,9 @@ jobs:
           mkdir -p signed-apk
           echo "LIST: " ./build/gh-app-publish/
           ls -l ./build/gh-app-publish/
-          cp ./build/gh-app-publish/jellyfin-android-v0.0.0-dev.1-libre-release-unsigned.apk       ./signed-apk/jellyfin-android-libre-release.apk
-          cp ./build/gh-app-publish/jellyfin-android-v0.0.0-dev.1-proprietary-release-unsigned.apk ./signed-apk/jellyfin-android-proprietary-release.apk
+          cp ./build/gh-app-publish/jellyfin-android-v0.0.0-dev.1-libre-release-unsigned.apk       ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-libre.apk
+          cp ./build/gh-app-publish/jellyfin-android-v0.0.0-dev.1-proprietary-release-unsigned.apk ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-proprietary.apk
           echo "LIST: " ./signed-apk/
-          ls -l ./signed-apk/
-          mv ./signed-apk/jellyfin-android-libre-release.apk       ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-libre-release.apk
-          mv ./signed-apk/jellyfin-android-proprietary-release.apk ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-proprietary-release.apk
-          echo "LIST: " release.apk
           ls -l ./signed-apk/
 
       - name: Sign app APK
@@ -159,13 +163,9 @@ jobs:
         shell: bash
         run: |
           ls -l ./signed-apk/
-          echo ${{ steps.sign_apk.outputs.signedReleaseFiles }}
-          echo ${{ steps.sign_apk.outputs.signedReleaseFiles0 }}
-          echo ${{ steps.sign_apk.outputs.signedReleaseFiles1 }}
-          echo ${{ steps.sign_apk.outputs.signedReleaseFile0 }}
-          echo ${{ steps.sign_apk.outputs.signedReleaseFile1 }}
 
       - name: Upload Artifact apk
+        if: ${{ inputs.upload_artifacts }}
         continue-on-error: true
         uses: deep-soft/upload-artifact@v3
         with:
@@ -183,7 +183,7 @@ jobs:
           files: |
             ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-libre-signed.apk
             ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-proprietary-signed.apk
-            ${{ steps.sign_apk.outputs.signedReleaseFiles }}
+            ./signed-apk/*-signed.apk
             _tag_name_.txt
 
       - name: Publish version build - signed apk package
@@ -194,10 +194,8 @@ jobs:
           draft: true
           tag_name: ${{ env.TAG_NAME }}-${{ env.TAG_VERSION }}${{ env.TAG_BUILD }}
           files: |
-            ${{steps.sign-apk.outputs.signedReleaseFile0}}
-            ${{steps.sign-apk.outputs.signedReleaseFile1}}
-            ${{ steps.sign_app.signedReleaseFile0 }}
-            ${{ steps.sign_app.signedReleaseFile1 }}
+            ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-libre-signed.apk
+            ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-proprietary-signed.apk
             _tag_name_.txt
 
       - name: Publish unsigned apk package
