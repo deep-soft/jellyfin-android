@@ -154,6 +154,11 @@ jobs:
         env:
           # override default build-tools version (29.0.3) -- optional
           BUILD_TOOLS_VERSION: "30.0.2"
+          
+      - name: List ./signed-apk/
+        shell: bash
+        run: |
+          ls -l ./signed-apk/
 
       - name: Publish signed apk package
         continue-on-error: true
