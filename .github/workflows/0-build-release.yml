@@ -1,4 +1,4 @@
-#2023-06-02 19:00
+#2023-06-02 18:40
 name: 0 - Build - release
 
 on:
@@ -53,24 +53,24 @@ jobs:
           echo "BLD: ${{ env.TAG_BUILD }}
           echo "${{ env.TAG_NAME }}-${{ env.TAG_BUILD }}" > _tag_name_.txt
 
-      - name: Create source archive
-        continue-on-error: true
-        shell: bash
-        run: |
-          staging="${{ env.PRG_NAME }}-src-${{ env.PRG_VERSION }}-${{ env.TAG_BUILD }}"
-          touch "$staging.tar.xz"
-          tar --exclude=*.tar* -cv . | xz -9 > "$staging.tar.xz"
-          echo "ASSET_SRC=$staging.tar.xz" >> $GITHUB_ENV
-          if [ "${{ env.DEBUG_LS }}" = "yes" ]; then
-            echo "source archive name: "
-            ls -l "$staging.tar.xz"
-          fi
-
+#       - name: Create source archive
+#         continue-on-error: true
+#         shell: bash
+#         run: |
+#           staging="${{ env.PRG_NAME }}-src-${{ env.PRG_VERSION }}-${{ env.TAG_BUILD }}"
+#           touch "$staging.tar.xz"
+#           tar --exclude=*.tar* -cv . | xz -9 > "$staging.tar.xz"
+#           echo "ASSET_SRC=$staging.tar.xz" >> $GITHUB_ENV
+#           if [ "${{ env.DEBUG_LS }}" = "yes" ]; then
+#             echo "source archive name: "
+#             ls -l "$staging.tar.xz"
+#           fi
+# 
       - name: Create source archive (zip)
         uses: deep-soft/zip-release@v2
         with:
           type: 'zip'
-          filename: '${{ env.TAG_NAME }}-${{ env.VERSION }}.zip'
+          filename: "${{ env.PRG_NAME }}-src-${{ env.PRG_VERSION }}-${{ env.TAG_BUILD }}"
           directory: '.'
           path: '.'
           exclusions: '*.git* /*node_modules/* .editorconfig'
@@ -106,8 +106,8 @@ jobs:
       - name: Create publish bundle
         shell: bash
         run: |
-          mkdir -p build/gh-app-publish/;
-          find app/build/ -iname "*.apk" -exec mv "{}" build/gh-app-publish/ \;
+          mkdir -p build/gh-app-publish/
+          find app/build/ -iname "*.apk" -exec mv "{}" build/gh-app-publish/ \
 
       - name: List artifacts
         shell: bash
@@ -120,7 +120,6 @@ jobs:
         with:
           name: upload-artifact-apk
           path: |
-            ./build/app/outputs/flutter-apk
             ./build/gh-app-publish/
 
       - name: Copy apk from outputs/
@@ -156,14 +155,6 @@ jobs:
           # override default build-tools version (29.0.3) -- optional
           BUILD_TOOLS_VERSION: "30.0.2"
 
-#       - name: Upload Artifacts
-#         continue-on-error: true
-#         if: env.ANDROID_SIGNING_KEY != null
-#         uses: deep-soft/upload-artifact@v3
-#         with:
-#           name: ${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-release-signed.apk
-#           path: ${{steps.sign-apk.outputs.signedReleaseFile}}
-
       - name: Publish signed apk package
         continue-on-error: true
         if: env.ANDROID_SIGNING_KEY != null
@@ -172,7 +163,8 @@ jobs:
           draft: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            ${{steps.sign-apk.outputs.signedReleaseFile}}
+            ${{steps.sign-apk.outputs.signedReleaseFile0}}
+            ${{steps.sign-apk.outputs.signedReleaseFile1}}
             _tag_name_.txt
 
       - name: Publish version build - signed apk package
@@ -183,7 +175,8 @@ jobs:
           draft: true
           tag_name: ${{ env.TAG_NAME }}-${{ env.TAG_VERSION }}${{ env.TAG_BUILD }}
           files: |
-            ${{steps.sign-apk.outputs.signedReleaseFile}}
+            ${{steps.sign-apk.outputs.signedReleaseFile0}}
+            ${{steps.sign-apk.outputs.signedReleaseFile1}}
             _tag_name_.txt
 
       - name: Publish unsigned apk package
@@ -194,5 +187,5 @@ jobs:
           draft: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-release-unsigned.apk
+            ./signed-apk/*.apk
             _tag_name_.txt
