@@ -106,8 +106,8 @@ jobs:
       - name: Create publish bundle
         shell: bash
         run: |
-          mkdir -p build/gh-app-publish/
-          find app/build/ -iname "*.apk" -exec mv "{}" build/gh-app-publish/ \
+          mkdir -p build/gh-app-publish/;
+          find app/build/ -iname "*.apk" -exec mv "{}" build/gh-app-publish/ \;
 
       - name: List artifacts
         shell: bash
