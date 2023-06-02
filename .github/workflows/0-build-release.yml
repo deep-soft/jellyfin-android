@@ -159,6 +159,11 @@ jobs:
         shell: bash
         run: |
           ls -l ./signed-apk/
+          echo ${{ steps.sign_apk.outputs.signedReleaseFiles }}
+          echo ${{ steps.sign_apk.outputs.signedReleaseFiles0 }}
+          echo ${{ steps.sign_apk.outputs.signedReleaseFiles1 }}
+          echo ${{ steps.sign_apk.outputs.signedReleaseFile0 }}
+          echo ${{ steps.sign_apk.outputs.signedReleaseFile1 }}
 
       - name: Upload Artifact apk
         continue-on-error: true
@@ -176,10 +181,9 @@ jobs:
           draft: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            ${{ steps.sign_apk.outputs.signedReleaseFile0 }}
-            ${{ steps.sign_apk.outputs.signedReleaseFile1 }}
-            ${{ steps.sign_app.signedReleaseFile0 }}
-            ${{ steps.sign_app.signedReleaseFile1 }}
+            ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-libre-signed.apk
+            ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-proprietary-signed.apk
+            ${{ steps.sign_apk.outputs.signedReleaseFiles }}
             _tag_name_.txt
 
       - name: Publish version build - signed apk package
