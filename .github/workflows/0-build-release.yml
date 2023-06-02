@@ -70,7 +70,7 @@ jobs:
         uses: deep-soft/zip-release@v2
         with:
           type: 'zip'
-          filename: "${{ env.PRG_NAME }}-src-${{ env.PRG_VERSION }}-${{ env.TAG_BUILD }}"
+          filename: "${{ env.PRG_NAME }}-src-${{ env.PRG_VERSION }}-${{ env.TAG_BUILD }}.zip"
           directory: '.'
           path: '.'
           exclusions: '*.git* /*node_modules/* .editorconfig'
@@ -88,8 +88,8 @@ jobs:
           draft: true
           tag_name: ${{ env.TAG_NAME }}-${{ env.TAG_VERSION }}${{ env.TAG_BUILD }}
           files: |
-            ${{ env.ASSET_SRC }}
             ${{ env.ZIP_RELEASE_ARCHIVE }}
+            ${{ env.ASSET_SRC }}
 
       - name: Setup Java
         uses: actions/setup-java@v3
@@ -154,11 +154,20 @@ jobs:
         env:
           # override default build-tools version (29.0.3) -- optional
           BUILD_TOOLS_VERSION: "30.0.2"
-          
+
       - name: List ./signed-apk/
         shell: bash
         run: |
           ls -l ./signed-apk/
+
+      - name: Upload Artifact apk
+        continue-on-error: true
+        uses: deep-soft/upload-artifact@v3
+        with:
+          name: upload-artifact-apk-signed
+          path: |
+            ./signed-apk/*-release.apk
+            ./signed-apk/*-signed.apk
 
       - name: Publish signed apk package
         continue-on-error: true
