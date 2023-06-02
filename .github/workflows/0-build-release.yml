@@ -183,10 +183,14 @@ jobs:
           draft: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
+            ${{ env.ZIP_RELEASE_ARCHIVE }}
             ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-libre-signed.apk
             ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-proprietary-signed.apk
             ./signed-apk/*-signed.apk
             _tag_name_.txt
+            ${{steps.sign_apk.outputs.signedFile0}}
+            ${{steps.sign_apk.outputs.signedFile1}}
+            ${{steps.sign_apk.outputs.signedFile2}}
 
       - name: Publish version build - signed apk package
         continue-on-error: true
@@ -199,6 +203,10 @@ jobs:
             ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-libre-signed.apk
             ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-proprietary-signed.apk
             _tag_name_.txt
+            ${{steps.sign_apk.outputs.signedFile0}}
+            ${{steps.sign_apk.outputs.signedFile1}}
+            ${{steps.sign_apk.outputs.signedFile2}}
+
 
       - name: Publish unsigned apk package
         continue-on-error: true
