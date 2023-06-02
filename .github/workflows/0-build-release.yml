@@ -1,19 +1,98 @@
-#2023-06-02 17:00
+#2023-06-02 18:00
 name: Build - release
 
 on:
   workflow_dispatch:
+#  pull_request:
+#    paths-ignore:
+#      - '.idea/**'
+#      - '.gitattributes'
+#      - '.github/**.json'
+#      - '.gitignore'
+#      - '.gitmodules'
+#      - '**.md'
+#      - 'LICENSE'
+#      - 'NOTICE'
+
+env:
+  PRG_NAME: "jellyfin-android"
+  PRG_VERSION: "v2.5.3"
+  TAG_NAME: "jellyfin-android"
+  TAG_VERSION: "v2.5.3"
+  TAG_BUILD: "-b"
+  TAG_REF: "0000000"
+  ANDROID_SIGNING_KEY: '${{ secrets.ANDROID_SIGNING_KEY }}'
+  #  signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
+  #  alias: ${{ secrets.ANDROID_ALIAS }}
+  #  keyStorePassword: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
+  #  keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}  
 
 jobs:
   build:
-    name: Build
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
+      - name: Checkout source code
+        uses: deep-soft/checkout@v3
+
+      - name: Get ref, set build version
+        shell: bash
+        run: |
+          _ref_all_=$(git log -1 --format='%H')
+          # _ref_=$(echo ${_ref_all_::7})
+          _ref_org_=${{ env.TAG_REF }}
+          _ref_len_="${#_ref_org_}"
+          _ref_=$(echo ${_ref_all_::$_ref_len_})
+          echo "TAG_REF=$_ref_" >> $GITHUB_ENV
+          _build_=${{ env.TAG_BUILD }}.$_ref_
+          echo "TAG_BUILD=$_build_" >> $GITHUB_ENV
+
+      - name: Print ref, build version
+        shell: bash
+        run: |
+          echo "REF: ${{ env.TAG_REF }}
+          echo "BLD: ${{ env.TAG_BUILD }}
+          echo "${{ env.TAG_NAME }}-${{ env.TAG_BUILD }}" > _tag_name_.txt
+
+      - name: Create source archive
+        continue-on-error: true
+        shell: bash
+        run: |
+          staging="${{ env.PRG_NAME }}-src-${{ env.PRG_VERSION }}-${{ env.TAG_BUILD }}"
+          touch "$staging.tar.xz"
+          tar --exclude=*.tar* -cv . | xz -9 > "$staging.tar.xz"
+          echo "ASSET_SRC=$staging.tar.xz" >> $GITHUB_ENV
+          if [ "${{ env.DEBUG_LS }}" = "yes" ]; then
+            echo "source archive name: "
+            ls -l "$staging.tar.xz"
+          fi
+
+    - name: Create source archive (zip)
+      uses: deep-soft/zip-release@v2
+      with:
+        type: 'zip'
+        filename: '${{ env.TAG_NAME }}-${{ env.VERSION }}.zip'
+        directory: '.'
+        path: '.'
+        exclusions: '*.git* /*node_modules/* .editorconfig'
+        # archive name is ${{ env.ZIP_RELEASE_ARCHIVE }}
+        
+    - name: print env value
+      shell: bash
+      run: |
+        echo "env.ZIP_RELEASE_ARCHIVE=${{ env.ZIP_RELEASE_ARCHIVE }}"
+
+      - name: Publish src archive
+        continue-on-error: true
+        uses: deep-soft/action-gh-release@v1
+        with:
+          draft: true
+          tag_name: ${{ env.TAG_NAME }}-${{ env.TAG_VERSION }}${{ env.TAG_BUILD }}
+          files: |
+            ${{ env.ASSET_SRC }}
+            ${{ env.ZIP_RELEASE_ARCHIVE }}
 
       - name: Setup Java
-        uses: actions/setup-java@5ffc13f4174014e2d4d4572b3d74c3fa61aeb2c2 # v3.11.0
+        uses: actions/setup-java@v3
         with:
           distribution: temurin
           java-version: 17
@@ -25,17 +104,95 @@ jobs:
         run: ./gradlew assembleRelease
 
       - name: Create publish bundle
-        run: mkdir -p build/gh-app-publish/; find app/build/ -iname "*.apk" -exec mv "{}" build/gh-app-publish/ \;
+        shell: bash
+        run: |
+          mkdir -p build/gh-app-publish/
+          find app/build/ -iname "*.apk" -exec mv "{}" build/gh-app-publish/ \
 
       - name: List artifacts
         shell: bash
         run: |
           ls -l build/gh-app-publish/
-        
-      - name: Upload artifacts
-        uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3.1.2
+
+      - name: Upload Artifact apk
+        continue-on-error: true
+        uses: deep-soft/upload-artifact@v3
         with:
-          name: build-artifacts
-          retention-days: 14
-          if-no-files-found: error
-          path: build/gh-app-publish/
+          name: upload-artifact-apk
+          path: |
+            ./build/app/outputs/flutter-apk
+            ./build/gh-app-publish/
+
+      - name: Copy apk from outputs/
+        continue-on-error: true
+        shell: bash
+        run: |
+          # ./build/app/outputs/flutter-apk/app-release.apk
+          set -x
+          mkdir -p signed-apk
+          echo "LIST: " ./build/gh-app-publish/
+          ls -l ./build/gh-app-publish/
+          cp ./build/gh-app-publish/jellyfin-android-v0.0.0-dev.1-libre-release-unsigned.apk       ./signed-apk/jellyfin-android-libre-release.apk
+          cp ./build/gh-app-publish/jellyfin-android-v0.0.0-dev.1-proprietary-release-unsigned.apk ./signed-apk/jellyfin-android-proprietary-release.apk
+          echo "LIST: " ./signed-apk/
+          ls -l ./signed-apk/
+          mv ./signed-apk/jellyfin-android-libre-release.apk       ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-libre-release.apk
+          mv ./signed-apk/jellyfin-android-proprietary-release.apk ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-proprietary-release.apk
+          echo "LIST: " release.apk
+          ls -l ./signed-apk/
+
+      - name: Sign app APK
+        uses: deep-soft/sign-android-release@master
+        continue-on-error: true
+        if: env.ANDROID_SIGNING_KEY != null
+        id: sign-apk
+        with:
+          releaseDirectory: ./signed-apk
+          signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
+          alias: ${{ secrets.ANDROID_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        env:
+          # override default build-tools version (29.0.3) -- optional
+          BUILD_TOOLS_VERSION: "30.0.2"
+
+#       - name: Upload Artifacts
+#         continue-on-error: true
+#         if: env.ANDROID_SIGNING_KEY != null
+#         uses: deep-soft/upload-artifact@v3
+#         with:
+#           name: ${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-release-signed.apk
+#           path: ${{steps.sign-apk.outputs.signedReleaseFile}}
+
+      - name: Publish signed apk package
+        continue-on-error: true
+        if: env.ANDROID_SIGNING_KEY != null
+        uses: deep-soft/action-gh-release@v1
+        with:
+          draft: true
+          tag_name: ${{ env.TAG_NAME }}
+          files: |
+            ${{steps.sign-apk.outputs.signedReleaseFile}}
+            _tag_name_.txt
+
+      - name: Publish version build - signed apk package
+        continue-on-error: true
+        if: env.ANDROID_SIGNING_KEY != null
+        uses: deep-soft/action-gh-release@v1
+        with:
+          draft: true
+          tag_name: ${{ env.TAG_NAME }}-${{ env.TAG_VERSION }}${{ env.TAG_BUILD }}
+          files: |
+            ${{steps.sign-apk.outputs.signedReleaseFile}}
+            _tag_name_.txt
+
+      - name: Publish unsigned apk package
+        continue-on-error: true
+        if: env.ANDROID_SIGNING_KEY == null
+        uses: deep-soft/action-gh-release@v1
+        with:
+          draft: true
+          tag_name: ${{ env.TAG_NAME }}
+          files: |
+            ./signed-apk/${{ env.PRG_NAME }}-${{ env.PRG_VERSION }}-release-unsigned.apk
+            _tag_name_.txt
