@@ -1,4 +1,4 @@
-#2023-06-02 18:00
+#2023-06-02 19:00
 name: 0 - Build - release
 
 on:
@@ -106,8 +106,8 @@ jobs:
       - name: Create publish bundle
         shell: bash
         run: |
-          mkdir -p build/gh-app-publish/
-          find app/build/ -iname "*.apk" -exec mv "{}" build/gh-app-publish/ \
+          mkdir -p build/gh-app-publish/;
+          find app/build/ -iname "*.apk" -exec mv "{}" build/gh-app-publish/ \;
 
       - name: List artifacts
         shell: bash
