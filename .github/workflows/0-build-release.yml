@@ -144,7 +144,7 @@ jobs:
         uses: deep-soft/sign-android-release@master
         continue-on-error: true
         if: env.ANDROID_SIGNING_KEY != null
-        id: sign-apk
+        id: sign_apk
         with:
           releaseDirectory: ./signed-apk
           signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
@@ -166,8 +166,7 @@ jobs:
         with:
           name: upload-artifact-apk-signed
           path: |
-            ./signed-apk/*-release.apk
-            ./signed-apk/*-signed.apk
+            ./signed-apk/
 
       - name: Publish signed apk package
         continue-on-error: true
@@ -177,8 +176,10 @@ jobs:
           draft: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            ${{steps.sign-apk.outputs.signedReleaseFile0}}
-            ${{steps.sign-apk.outputs.signedReleaseFile1}}
+            ${{ steps.sign_apk.outputs.signedReleaseFile0 }}
+            ${{ steps.sign_apk.outputs.signedReleaseFile1 }}
+            ${{ steps.sign_app.signedReleaseFile0 }}
+            ${{ steps.sign_app.signedReleaseFile1 }}
             _tag_name_.txt
 
       - name: Publish version build - signed apk package
@@ -191,6 +192,8 @@ jobs:
           files: |
             ${{steps.sign-apk.outputs.signedReleaseFile0}}
             ${{steps.sign-apk.outputs.signedReleaseFile1}}
+            ${{ steps.sign_app.signedReleaseFile0 }}
+            ${{ steps.sign_app.signedReleaseFile1 }}
             _tag_name_.txt
 
       - name: Publish unsigned apk package
