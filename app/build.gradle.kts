@@ -1,6 +1,5 @@
-import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
-import com.github.benmanes.gradle.versions.updates.gradle.GradleReleaseChannel
 import io.gitlab.arturbosch.detekt.Detekt
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     alias(libs.plugins.android.app)
@@ -9,7 +8,6 @@ plugins {
     alias(libs.plugins.kotlin.parcelize)
     alias(libs.plugins.detekt)
     alias(libs.plugins.android.junit5)
-    alias(libs.plugins.dependencyupdates)
 }
 
 // Apply workaround
@@ -82,6 +80,7 @@ android {
 
     @Suppress("UnstableApiUsage")
     buildFeatures {
+        buildConfig = true
         viewBinding = true
         compose = true
     }
@@ -93,6 +92,8 @@ android {
         kotlinCompilerExtensionVersion = libs.versions.compose.compiler.get()
     }
     compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
         isCoreLibraryDesugaringEnabled = true
     }
     lint {
@@ -156,9 +157,7 @@ dependencies {
         exclude("com.google.android.gms", "play-services-cronet")
     }
     implementation(libs.jellyfin.exoplayer.ffmpegextension)
-    @Suppress("UnstableApiUsage")
     proprietaryImplementation(libs.exoplayer.cast)
-    @Suppress("UnstableApiUsage")
     proprietaryImplementation(libs.bundles.playservices)
 
     // Room
@@ -183,8 +182,14 @@ dependencies {
 }
 
 tasks {
+    withType<KotlinCompile> {
+        kotlinOptions {
+            jvmTarget = JavaVersion.VERSION_11.toString()
+        }
+    }
+
     withType<Detekt> {
-        jvmTarget = JavaVersion.VERSION_1_8.toString()
+        jvmTarget = JavaVersion.VERSION_11.toString()
 
         reports {
             html.required.set(true)
@@ -200,24 +205,6 @@ tasks {
         testLogging {
             outputs.upToDateWhen { false }
             showStandardStreams = true
-        }
-    }
-
-    // Configure dependency updates task
-    withType<DependencyUpdatesTask> {
-        gradleReleaseChannel = GradleReleaseChannel.CURRENT.id
-        rejectVersionIf {
-            val currentType = classifyVersion(currentVersion)
-            val candidateType = classifyVersion(candidate.version)
-
-            when (candidateType) {
-                // Always accept stable updates
-                VersionType.STABLE -> true
-                // Accept milestone updates for current milestone and unstable
-                VersionType.MILESTONE -> currentType != VersionType.STABLE
-                // Only accept unstable for current unstable
-                VersionType.UNSTABLE -> currentType == VersionType.UNSTABLE
-            }.not()
         }
     }
 
