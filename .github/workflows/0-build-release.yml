@@ -146,7 +146,7 @@ jobs:
           ls -l ./signed-apk/
 
       - name: Sign app APK
-        uses: deep-soft/sign-android-release-apk@master
+        uses: deep-soft/sign-android-release@master
         continue-on-error: true
         if: env.ANDROID_SIGNING_KEY != null
         id: sign_apk
