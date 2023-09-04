@@ -2,17 +2,14 @@ package org.jellyfin.mobile.player.deviceprofile
 
 import android.media.MediaCodecList
 import org.jellyfin.mobile.app.AppPreferences
-import org.jellyfin.mobile.bridge.ExternalPlayer
 import org.jellyfin.mobile.utils.Constants
 import org.jellyfin.sdk.model.api.CodecProfile
 import org.jellyfin.sdk.model.api.ContainerProfile
 import org.jellyfin.sdk.model.api.DeviceProfile
 import org.jellyfin.sdk.model.api.DirectPlayProfile
 import org.jellyfin.sdk.model.api.DlnaProfileType
-import org.jellyfin.sdk.model.api.EncodingContext
 import org.jellyfin.sdk.model.api.SubtitleDeliveryMethod
 import org.jellyfin.sdk.model.api.SubtitleProfile
-import org.jellyfin.sdk.model.api.TranscodeSeekInfo
 import org.jellyfin.sdk.model.api.TranscodingProfile
 
 class DeviceProfileBuilder(
@@ -75,18 +72,7 @@ class DeviceProfileBuilder(
                 container = "ts",
                 videoCodec = "h264",
                 audioCodec = "mp1,mp2,mp3,aac,ac3,eac3,dts,mlp,truehd",
-                context = EncodingContext.STREAMING,
                 protocol = "hls",
-
-                // TODO: remove redundant defaults after API/SDK is fixed
-                estimateContentLength = false,
-                enableMpegtsM2TsMode = false,
-                transcodeSeekInfo = TranscodeSeekInfo.AUTO,
-                copyTimestamps = false,
-                enableSubtitlesInManifest = false,
-                minSegments = 0,
-                segmentLength = 0,
-                breakOnNonKeyFrames = false,
                 conditions = emptyList(),
             ),
             TranscodingProfile(
@@ -94,18 +80,7 @@ class DeviceProfileBuilder(
                 container = "mkv",
                 videoCodec = "h264",
                 audioCodec = AVAILABLE_AUDIO_CODECS[SUPPORTED_CONTAINER_FORMATS.indexOf("mkv")].joinToString(","),
-                context = EncodingContext.STREAMING,
                 protocol = "hls",
-
-                // TODO: remove redundant defaults after API/SDK is fixed
-                estimateContentLength = false,
-                enableMpegtsM2TsMode = false,
-                transcodeSeekInfo = TranscodeSeekInfo.AUTO,
-                copyTimestamps = false,
-                enableSubtitlesInManifest = false,
-                minSegments = 0,
-                segmentLength = 0,
-                breakOnNonKeyFrames = false,
                 conditions = emptyList(),
             ),
             TranscodingProfile(
@@ -113,18 +88,7 @@ class DeviceProfileBuilder(
                 container = "mp3",
                 videoCodec = "",
                 audioCodec = "mp3",
-                context = EncodingContext.STREAMING,
                 protocol = "http",
-
-                // TODO: remove redundant defaults after API/SDK is fixed
-                estimateContentLength = false,
-                enableMpegtsM2TsMode = false,
-                transcodeSeekInfo = TranscodeSeekInfo.AUTO,
-                copyTimestamps = false,
-                enableSubtitlesInManifest = false,
-                minSegments = 0,
-                segmentLength = 0,
-                breakOnNonKeyFrames = false,
                 conditions = emptyList(),
             ),
         )
@@ -179,45 +143,11 @@ class DeviceProfileBuilder(
             musicStreamingTranscodingBitrate = MAX_MUSIC_TRANSCODING_BITRATE,
 
             // TODO: remove redundant defaults after API/SDK is fixed
-            timelineOffsetSeconds = 0,
-            enableAlbumArtInDidl = false,
-            enableSingleAlbumArtLimit = false,
-            enableSingleSubtitleLimit = false,
             supportedMediaTypes = "",
-            requiresPlainFolders = false,
-            requiresPlainVideoItems = false,
-            enableMsMediaReceiverRegistrar = false,
-            ignoreTranscodeByteRangeRequests = false,
             xmlRootAttributes = emptyList(),
             responseProfiles = emptyList(),
         )
     }
-
-    fun getExternalPlayerProfile(): DeviceProfile = DeviceProfile(
-        name = ExternalPlayer.DEVICE_PROFILE_NAME,
-        directPlayProfiles = listOf(
-            DirectPlayProfile(type = DlnaProfileType.VIDEO),
-            DirectPlayProfile(type = DlnaProfileType.AUDIO),
-        ),
-        transcodingProfiles = emptyList(),
-        containerProfiles = emptyList(),
-        codecProfiles = emptyList(),
-        subtitleProfiles = getSubtitleProfiles(EXTERNAL_PLAYER_SUBTITLES, EXTERNAL_PLAYER_SUBTITLES),
-        maxStreamingBitrate = MAX_STREAMING_BITRATE,
-
-        // TODO: remove redundant defaults after API/SDK is fixed
-        timelineOffsetSeconds = 0,
-        enableAlbumArtInDidl = false,
-        enableSingleAlbumArtLimit = false,
-        enableSingleSubtitleLimit = false,
-        supportedMediaTypes = "",
-        requiresPlainFolders = false,
-        requiresPlainVideoItems = false,
-        enableMsMediaReceiverRegistrar = false,
-        ignoreTranscodeByteRangeRequests = false,
-        xmlRootAttributes = emptyList(),
-        responseProfiles = emptyList(),
-    )
 
     private fun getSubtitleProfiles(embedded: Array<String>, external: Array<String>): List<SubtitleProfile> = ArrayList<SubtitleProfile>().apply {
         for (format in embedded) {
@@ -323,9 +253,6 @@ class DeviceProfileBuilder(
         private val EXO_EMBEDDED_SUBTITLES = arrayOf("dvbsub", "pgssub", "srt", "subrip", "ttml")
         private val EXO_EXTERNAL_SUBTITLES = arrayOf("srt", "subrip", "ttml", "vtt", "webvtt")
         private val SUBTITLES_SSA = arrayOf("ssa", "ass")
-        private val EXTERNAL_PLAYER_SUBTITLES = arrayOf(
-            "ass", "idx", "pgssub", "smi", "smil", "srt", "ssa", "sub", "subrip", "ttml", "vtt", "webvtt",
-        )
 
         /**
          * Taken from Jellyfin Web:
