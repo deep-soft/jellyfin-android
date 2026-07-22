@@ -1,19 +1,26 @@
 name: Repo / Label merge conflict
 
 on:
-  workflow_dispatch:
-#  push:
-#  pull_request_target:
-#    types:
-#      - synchronize
+  push:
+    branches:
+      - master
+  pull_request_target:
+    types:
+      - synchronize
+
+permissions: {}
 
 jobs:
   triage:
     name: Triage
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
     if: ${{ contains(github.repository_owner, 'jellyfin') }}
     steps:
-      - uses: eps1lon/actions-label-merge-conflict@1b1b1fcde06a9b3d089f3464c96417961dde1168 # v3.0.2
+      - uses: eps1lon/actions-label-merge-conflict@0273be72a0bbd58fcd71d0d6c02c209b50d1e5e1 # v3.1.0
         with:
-          dirtyLabel: merge conflict
+          dirtyLabel: 'merge conflict'
+          commentOnDirty: 'This pull request has merge conflicts. Please resolve the conflicts so the PR can be successfully reviewed and merged.'
           repoToken: ${{ secrets.JF_BOT_TOKEN }}
