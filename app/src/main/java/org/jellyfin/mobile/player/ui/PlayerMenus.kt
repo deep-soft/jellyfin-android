@@ -3,18 +3,30 @@ package org.jellyfin.mobile.player.ui
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.Button
 import android.widget.ImageButton
 import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.annotation.StringRes
+import androidx.appcompat.widget.AppCompatImageView
+import androidx.appcompat.widget.AppCompatTextView
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.get
 import androidx.core.view.isVisible
 import androidx.core.view.size
+import androidx.core.view.updateLayoutParams
+import androidx.media3.ui.DefaultTimeBar
+import androidx.media3.ui.TimeBar
 import org.jellyfin.mobile.R
 import org.jellyfin.mobile.databinding.ExoPlayerControlViewBinding
 import org.jellyfin.mobile.databinding.FragmentPlayerBinding
 import org.jellyfin.mobile.player.qualityoptions.QualityOptionsProvider
 import org.jellyfin.mobile.player.source.JellyfinMediaSource
+import org.jellyfin.mobile.player.source.LocalJellyfinMediaSource
+import org.jellyfin.mobile.player.source.RemoteJellyfinMediaSource
+import org.jellyfin.mobile.player.ui.playermenuhelper.PlayerMenuHelper
+import org.jellyfin.mobile.player.ui.playermenuhelper.SkipMediaSegmentButton
+import org.jellyfin.sdk.model.api.ChapterInfo
 import org.jellyfin.sdk.model.api.MediaStream
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -32,8 +44,11 @@ class PlayerMenus(
 
     private val context = playerBinding.root.context
     private val qualityOptionsProvider: QualityOptionsProvider by inject()
+    private val playPauseContainer: View by playerControlsBinding::playPauseContainer
     private val previousButton: View by playerControlsBinding::previousButton
     private val nextButton: View by playerControlsBinding::nextButton
+    private val previousChapterButton: View by playerControlsBinding::previousChapterButton
+    private val nextChapterButton: View by playerControlsBinding::nextChapterButton
     private val lockScreenButton: View by playerControlsBinding::lockScreenButton
     private val audioStreamsButton: View by playerControlsBinding::audioStreamsButton
     private val subtitlesButton: ImageButton by playerControlsBinding::subtitlesButton
@@ -47,16 +62,52 @@ class PlayerMenus(
     private val speedMenu: PopupMenu = createSpeedMenu()
     private val qualityMenu: PopupMenu = createQualityMenu()
     private val decoderMenu: PopupMenu = createDecoderMenu()
+    private val chapterMarkingContainer: ConstraintLayout by playerControlsBinding::chapterMarkingContainer
+    private val exoProgress: DefaultTimeBar by playerControlsBinding::exoProgress
+    private val seekBarContainer: View by playerControlsBinding::seekBarContainer
+    private val trickplayContainer: View by playerControlsBinding::trickplayContainer
+    private val trickplayThumbnail: AppCompatImageView by playerControlsBinding::trickplayThumbnail
+    private val trickplayChapterName: AppCompatTextView by playerControlsBinding::trickplayChapterName
+    private val trickplayTime: AppCompatTextView by playerControlsBinding::trickplayTime
+    private val skipSegmentButton: Button by playerBinding::skipSegmentButton
 
     private var subtitleCount = 0
     private var subtitlesEnabled = false
 
+    private val trickplayHelper = TrickplayHelper(
+        trickplayContainer,
+        trickplayThumbnail,
+        seekBarContainer,
+        trickplayChapterName,
+        trickplayTime,
+    )
+
+    private val playerMenuHelper: PlayerMenuHelper = PlayerMenuHelper(
+        skipMediaSegmentButton = SkipMediaSegmentButton(skipSegmentButton, fragment::onSkipMediaSegment),
+    )
+
     init {
+        exoProgress.addListener(object : TimeBar.OnScrubListener {
+            override fun onScrubStart(timeBar: TimeBar, position: Long) = trickplayHelper.onScrubMove(position)
+            override fun onScrubMove(timeBar: TimeBar, position: Long) = trickplayHelper.onScrubMove(position)
+            override fun onScrubStop(
+                timeBar: TimeBar,
+                position: Long,
+                cancelled: Boolean,
+            ) = trickplayHelper.onScrubStop()
+        })
+
         previousButton.setOnClickListener {
             fragment.onSkipToPrevious()
         }
         nextButton.setOnClickListener {
             fragment.onSkipToNext()
+        }
+        previousChapterButton.setOnClickListener {
+            fragment.onPreviousChapter()
+        }
+        nextChapterButton.setOnClickListener {
+            fragment.onNextChapter()
         }
         lockScreenButton.setOnClickListener {
             fragment.playerLockScreenHelper.lockScreen()
@@ -98,11 +149,20 @@ class PlayerMenus(
         playbackInfo.setOnClickListener {
             dismissPlaybackInfo()
         }
+
+        fragment.setPlayerMenuHelper(playerMenuHelper)
     }
 
     fun onQueueItemChanged(mediaSource: JellyfinMediaSource, hasNext: Boolean) {
         // previousButton is always enabled and will rewind if at the start of the queue
         nextButton.isEnabled = hasNext
+
+        trickplayHelper.onMediaSourceChanged(mediaSource)
+
+        val chapters = mediaSource.item?.chapters
+        updateLayoutConstraints(!chapters.isNullOrEmpty())
+        val runTimeTicks = mediaSource.item?.runTimeTicks
+        setChapterMarkings(chapters, runTimeTicks)
 
         val videoStream = mediaSource.selectedVideoStream
 
@@ -130,10 +190,11 @@ class PlayerMenus(
 
         val height = videoStream?.height
         val width = videoStream?.width
-        if (height != null && width != null) {
-            buildQualityMenu(qualityMenu.menu, mediaSource.maxStreamingBitrate, width, height)
-        } else {
-            qualityButton.isVisible = false
+        when (mediaSource) {
+            is LocalJellyfinMediaSource -> qualityButton.isVisible = false
+            is RemoteJellyfinMediaSource -> if (height != null && width != null) {
+                buildQualityMenu(qualityMenu.menu, mediaSource.maxStreamingBitrate, width, height)
+            }
         }
 
         val playMethod = context.getString(R.string.playback_info_play_method, mediaSource.playMethod)
@@ -159,6 +220,38 @@ class PlayerMenus(
             videoTracksInfo,
             audioTracksInfo,
         ).joinToString("\n\n")
+    }
+
+    private fun updateLayoutConstraints(hasChapters: Boolean) {
+        if (hasChapters) {
+            previousButton.updateLayoutParams<ConstraintLayout.LayoutParams> { endToStart = previousChapterButton.id }
+            nextButton.updateLayoutParams<ConstraintLayout.LayoutParams> { startToEnd = nextChapterButton.id }
+            previousChapterButton.isVisible = true
+            nextChapterButton.isVisible = true
+        } else {
+            previousButton.updateLayoutParams<ConstraintLayout.LayoutParams> { endToStart = playPauseContainer.id }
+            nextButton.updateLayoutParams<ConstraintLayout.LayoutParams> { startToEnd = playPauseContainer.id }
+            previousChapterButton.isVisible = false
+            nextChapterButton.isVisible = false
+        }
+    }
+
+    private fun setChapterMarkings(chapters: List<ChapterInfo>?, runTimeTicks: Long?) {
+        chapterMarkingContainer.removeAllViews()
+
+        if (chapters.isNullOrEmpty() || runTimeTicks == null || runTimeTicks <= 0) {
+            playerMenuHelper.chapterMarkings.setMarkings(emptyList())
+            return
+        }
+
+        val chapterMarkings = chapters.map { ch ->
+            val percent = ch.startPositionTicks.toFloat() / runTimeTicks
+            val bias = percent.coerceIn(0f, 1f)
+            val marking = ChapterMarking(context, bias)
+            chapterMarkingContainer.addView(marking.view) // Add view as side effect to avoid another loop
+            marking
+        }
+        playerMenuHelper.chapterMarkings.setMarkings(chapterMarkings)
     }
 
     private fun buildMediaStreamsInfo(

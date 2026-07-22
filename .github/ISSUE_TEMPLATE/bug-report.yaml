@@ -1,7 +1,24 @@
 name: Bug report
 description: Create a bug report
-labels: [ bug ]
+labels:
+  - bug
 body:
+  - type: checkboxes
+    id: before-posting
+    attributes:
+      label: "This issue respects the following points:"
+      description: All conditions are **required**.
+      options:
+        - label: This issue is **not** already reported on [GitHub](https://github.com/jellyfin/jellyfin-android/issues?q=is%3Aopen+is%3Aissue) _(I've searched it)_.
+          required: true
+        - label: I agree to follow Jellyfin's [Code of Conduct](https://jellyfin.org/docs/general/community-standards.html#code-of-conduct).
+          required: true
+        - label: This report addresses only a single issue; If you encounter multiple issues, kindly create separate reports for each one.
+          required: true
+  - type: markdown
+    attributes:
+      value: |
+        ## Bug information  
   - type: textarea
     id: description
     attributes:
@@ -28,12 +45,16 @@ body:
         Make sure that they don't contain any sensitive information like server URL, auth tokens or passwords.
       placeholder: Paste logs…
       render: shell
+  - type: markdown
+    attributes:
+      value: |
+        ## Environment
   - type: input
     id: app-version
     attributes:
       label: Application version
-      description: The version of the installed Jellyfin Android app.
-      placeholder: 2.3.0
+      description: The version of the installed Jellyfin for Android app.
+      placeholder: 2.6.1
     validations:
       required: true
   - type: dropdown
@@ -42,16 +63,16 @@ body:
       label: Where did you install the app from?
       description: Choose the appropriate app store or installation method.
       options:
-        - Google Play
-        - F-Droid
+        - Google Play Store
         - Amazon Appstore
+        - F-Droid
         - Sideloaded APK (libre build)
         - Sideloaded APK (proprietary build)
   - type: input
     id: device-info
     attributes:
       label: Device information
-      description: Manufacturer, model
+      description: Manufacturer and model
       placeholder: Google Pixel 5, Samsung Galaxy S21
     validations:
       required: true
@@ -60,7 +81,7 @@ body:
     attributes:
       label: Android version
       description: Version of the OS and other information (e.g. custom ROM / OEM skin)
-      placeholder: Android 11, LineageOS 18.1
+      placeholder: Android 13, LineageOS 20
     validations:
       required: true
   - type: input
@@ -68,16 +89,18 @@ body:
     attributes:
       label: Jellyfin server version
       description: If on unstable, please specify the commit hash.
-      placeholder: 10.7.6
+      placeholder: 10.10.2
     validations:
       required: true
-  - type: checkboxes
-    id: video-player
+  - type: markdown
     attributes:
-      label: Which video player implementations does this bug apply to?
-      description: |
-        *If applicable.* Video player can be switched in the client settings of the app.
-      options:
-        - label: Web player (default)
-        - label: Integrated player (ExoPlayer)
-        - label: External player (VLC, mpv, MX Player)
+      value: |
+        ## Additional
+  - type: input
+    id: other-sources
+    attributes:
+      label: Other sources
+      description: If this topic has been discussed outside of GitHub, please link it.
+      placeholder: https://forum.jellyfin.org/…
+    validations:
+      required: false

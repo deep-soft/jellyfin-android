@@ -3,8 +3,8 @@ package org.jellyfin.mobile.events
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.ActivityInfo
-import android.net.Uri
 import android.os.Bundle
+import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import org.jellyfin.mobile.MainActivity
 import org.jellyfin.mobile.R
 import org.jellyfin.mobile.bridge.JavascriptCallback
+import org.jellyfin.mobile.downloads.DownloadsFragment
 import org.jellyfin.mobile.player.ui.PlayerFragment
 import org.jellyfin.mobile.player.ui.PlayerFullscreenHelper
 import org.jellyfin.mobile.settings.SettingsFragment
@@ -27,8 +28,8 @@ class ActivityEventHandler(
     private val webappFunctionChannel: WebappFunctionChannel,
 ) {
     private val eventsFlow = MutableSharedFlow<ActivityEvent>(
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        extraBufferCapacity = 10,
+        onBufferOverflow = BufferOverflow.SUSPEND,
     )
 
     fun MainActivity.subscribe() {
@@ -66,16 +67,20 @@ class ActivityEventHandler(
             }
             is ActivityEvent.OpenUrl -> {
                 try {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(event.uri))
+                    val intent = Intent(Intent.ACTION_VIEW, event.uri.toUri())
+                    if (event.grantReadPermission) intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     startActivity(intent)
                 } catch (e: ActivityNotFoundException) {
                     Timber.e("openIntent: %s", e.message)
                 }
             }
-            is ActivityEvent.DownloadFile -> {
+            is ActivityEvent.DownloadItems -> {
                 lifecycleScope.launch {
-                    with(event) { requestDownload(uri, title, filename) }
+                    with(event) { requestDownload(itemIds) }
                 }
+            }
+            ActivityEvent.OpenDownloads -> {
+                supportFragmentManager.addFragment<DownloadsFragment>()
             }
             is ActivityEvent.CastMessage -> {
                 val action = event.action

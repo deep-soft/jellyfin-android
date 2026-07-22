@@ -1,43 +1,33 @@
 package org.jellyfin.mobile.player.source
 
+import android.content.Context
+import org.jellyfin.mobile.R
 import org.jellyfin.mobile.player.deviceprofile.CodecHelpers
 import org.jellyfin.mobile.utils.Constants
 import org.jellyfin.sdk.model.api.BaseItemDto
+import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.MediaSourceInfo
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.PlayMethod
 import org.jellyfin.sdk.model.api.SubtitleDeliveryMethod
+import org.jellyfin.sdk.model.extensions.ticks
 import java.util.UUID
+import kotlin.time.Duration
 
-class JellyfinMediaSource(
+sealed class JellyfinMediaSource(
     val itemId: UUID,
     val item: BaseItemDto?,
     val sourceInfo: MediaSourceInfo,
     val playSessionId: String,
-    val liveStreamId: String?,
-    val maxStreamingBitrate: Int?,
-    private var startTimeTicks: Long? = null,
-    audioStreamIndex: Int? = null,
-    subtitleStreamIndex: Int? = null,
+    playbackDetails: PlaybackDetails?,
 ) {
     val id: String = requireNotNull(sourceInfo.id) { "Media source has no id" }
-    val name: String = item?.name ?: sourceInfo.name.orEmpty()
 
-    val playMethod: PlayMethod = when {
-        sourceInfo.supportsDirectPlay -> PlayMethod.DIRECT_PLAY
-        sourceInfo.supportsDirectStream -> PlayMethod.DIRECT_STREAM
-        sourceInfo.supportsTranscoding -> PlayMethod.TRANSCODE
-        else -> throw IllegalArgumentException("No play method found for $name ($itemId)")
-    }
+    abstract val playMethod: PlayMethod
 
-    var startTimeMs: Long
-        get() = (startTimeTicks ?: 0L) / Constants.TICKS_PER_MILLISECOND
-        set(value) {
-            startTimeTicks = value * Constants.TICKS_PER_MILLISECOND
-        }
-    val runTimeTicks: Long = sourceInfo.runTimeTicks ?: 0
-    val runTimeMs: Long = runTimeTicks / Constants.TICKS_PER_MILLISECOND
+    var startTime: Duration = playbackDetails?.startTime ?: Duration.ZERO
+    val runTime: Duration = sourceInfo.runTimeTicks?.ticks ?: Duration.ZERO
 
     val mediaStreams: List<MediaStream> = sourceInfo.mediaStreams.orEmpty()
     val audioStreams: List<MediaStream>
@@ -73,13 +63,13 @@ class JellyfinMediaSource(
                 }
                 MediaStreamType.AUDIO -> {
                     audio += mediaStream
-                    if (mediaStream.index == (audioStreamIndex ?: sourceInfo.defaultAudioStreamIndex)) {
+                    if (mediaStream.index == (playbackDetails?.audioStreamIndex ?: sourceInfo.defaultAudioStreamIndex)) {
                         selectedAudioStream = mediaStream
                     }
                 }
                 MediaStreamType.SUBTITLE -> {
                     subtitles += mediaStream
-                    if (mediaStream.index == (subtitleStreamIndex ?: sourceInfo.defaultSubtitleStreamIndex)) {
+                    if (mediaStream.index == (playbackDetails?.subtitleStreamIndex ?: sourceInfo.defaultSubtitleStreamIndex)) {
                         selectedSubtitleStream = mediaStream
                     }
 
@@ -163,4 +153,47 @@ class JellyfinMediaSource(
         }
         throw IllegalArgumentException("Invalid media stream")
     }
+
+    /**
+     * Get the formatted name of the source.
+     */
+    @Suppress("CyclomaticComplexMethod")
+    fun getName(context: Context): String {
+        return item?.let {
+            buildString {
+                val name = if (
+                    it.type in arrayOf(BaseItemKind.PROGRAM, BaseItemKind.RECORDING) &&
+                    (it.isSeries == true || !it.episodeTitle.isNullOrEmpty())
+                ) {
+                    it.episodeTitle
+                } else {
+                    it.name
+                }
+
+                val extraInfo = when (it.type) {
+                    BaseItemKind.TV_CHANNEL if !it.channelNumber.isNullOrEmpty() -> it.channelNumber
+                    BaseItemKind.EPISODE if it.parentIndexNumber == 0 -> context.getString(R.string.special_episode)
+                    in arrayOf(BaseItemKind.EPISODE, BaseItemKind.RECORDING) if it.indexNumber != null && it.parentIndexNumber != null ->
+                        "S${it.parentIndexNumber}:E${it.indexNumber}${it.indexNumberEnd?.let { n -> "-$n" } ?: ""}"
+                    else -> ""
+                }
+
+                listOf(it.seriesName, extraInfo, name)
+                    .filter { str -> !str.isNullOrEmpty() }
+                    .joinTo(this, separator = " - ")
+
+                if (it.type == BaseItemKind.MOVIE && it.productionYear != null) {
+                    append(" (${it.productionYear})")
+                } else if (it.premiereDate != null) {
+                    append(" (${it.premiereDate!!.year})")
+                }
+            }.ifEmpty { null }
+        } ?: sourceInfo.name.orEmpty()
+    }
 }
+
+data class PlaybackDetails(
+    val startTime: Duration?,
+    val audioStreamIndex: Int?,
+    val subtitleStreamIndex: Int?,
+)

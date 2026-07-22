@@ -5,10 +5,12 @@ import kotlinx.coroutines.withContext
 import org.jellyfin.mobile.data.dao.ServerDao
 import org.jellyfin.mobile.data.dao.UserDao
 import org.jellyfin.mobile.data.entity.ServerEntity
+import org.jellyfin.mobile.data.entity.ServerUser
+import org.jellyfin.mobile.data.entity.UserEntity
 import org.jellyfin.sdk.Jellyfin
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.model.DeviceInfo
-import org.jellyfin.sdk.model.serializer.toUUID
+import java.util.UUID
 
 class ApiClientController(
     private val appPreferences: AppPreferences,
@@ -27,10 +29,10 @@ class ApiClientController(
         appPreferences.currentServerId = withContext(Dispatchers.IO) {
             serverDao.getServerByHostname(hostname)?.id ?: serverDao.insert(hostname)
         }
-        apiClient.baseUrl = hostname
+        apiClient.update(baseUrl = hostname)
     }
 
-    suspend fun setupUser(serverId: Long, userId: String, accessToken: String) {
+    suspend fun setupUser(serverId: Long, userId: UUID, accessToken: String) {
         appPreferences.currentUserId = withContext(Dispatchers.IO) {
             userDao.upsert(serverId, userId, accessToken)
         }
@@ -46,7 +48,12 @@ class ApiClientController(
         return server
     }
 
-    suspend fun loadSavedServerUser() {
+    suspend fun loadSavedUser(): UserEntity? = withContext(Dispatchers.IO) {
+        val userId = appPreferences.currentUserId ?: return@withContext null
+        userDao.getUser(userId)
+    }
+
+    suspend fun loadSavedServerUser(): ServerUser? {
         val serverUser = withContext(Dispatchers.IO) {
             val serverId = appPreferences.currentServerId ?: return@withContext null
             val userId = appPreferences.currentUserId ?: return@withContext null
@@ -60,6 +67,8 @@ class ApiClientController(
         } else {
             resetApiClientUser()
         }
+
+        return serverUser
     }
 
     suspend fun loadPreviouslyUsedServers(): List<ServerEntity> = withContext(Dispatchers.IO) {
@@ -69,19 +78,31 @@ class ApiClientController(
     }
 
     private fun configureApiClientServer(server: ServerEntity?) {
-        apiClient.baseUrl = server?.hostname
+        apiClient.update(baseUrl = server?.hostname)
     }
 
-    private fun configureApiClientUser(userId: String, accessToken: String) {
-        apiClient.userId = userId.toUUID()
-        apiClient.accessToken = accessToken
-        // Append user id to device id to ensure uniqueness across sessions
-        apiClient.deviceInfo = baseDeviceInfo.copy(id = baseDeviceInfo.id + userId)
+    private fun configureApiClientUser(userId: UUID, accessToken: String) {
+        apiClient.update(
+            accessToken = accessToken,
+            // Append user id to device id to ensure uniqueness across sessions
+            deviceInfo = baseDeviceInfo.copy(id = baseDeviceInfo.id + userId),
+        )
     }
 
     private fun resetApiClientUser() {
-        apiClient.userId = null
-        apiClient.accessToken = null
-        apiClient.deviceInfo = baseDeviceInfo
+        apiClient.update(
+            accessToken = null,
+            deviceInfo = baseDeviceInfo,
+        )
+    }
+
+    fun getApiClient(server: Long, user: Long): ApiClient {
+        val serverUser = userDao.getServerUser(server, user) ?: error("Invalid server user combination (server=$server, user=$user)")
+
+        return jellyfin.createApi(
+            baseUrl = serverUser.server.hostname,
+            accessToken = serverUser.user.accessToken,
+            deviceInfo = baseDeviceInfo.copy(id = baseDeviceInfo.id + serverUser.user.userId),
+        )
     }
 }

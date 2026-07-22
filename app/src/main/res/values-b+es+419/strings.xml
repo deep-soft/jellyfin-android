@@ -58,7 +58,6 @@
     <string name="music_notification_channel_description">Se utiliza para controlar la reproducción de música</string>
     <string name="music_notification_channel">Reproductor de música de Jellyfin</string>
     <string name="media_service_car_item_no_title">Sin título</string>
-    <string name="media_service_car_section_playlists">Listas</string>
     <string name="media_service_car_section_genres">Géneros</string>
     <string name="media_service_car_section_songs">Canciones</string>
     <string name="media_service_car_section_artists">Artistas</string>
@@ -112,4 +111,24 @@
     <string name="mobile_data_and_roaming_summary">El contenido se descargará sobre WIFI, redes móviles y en itinerancia.</string>
     <string name="wifi_only_summary">El contenido se descargará solo sobre WIFI.</string>
     <string name="mobile_data_summary">El contenido se descargará sobre WIFI o redes móviles.</string>
+    <string name="external_player_mpvkt">Reproductor mpvKt</string>
+    <string name="pref_exoplayer_allow_press_speed_up">Sostener para acelerar</string>
+    <string name="pref_exoplayer_allow_press_speed_up_summary">Tocar y sostener en la pantalla para acelerar temporalmente la reproducción</string>
+    <string name="view_downloads">Ver descargas</string>
+    <string name="downloads">Descargas</string>
+    <string name="download_notifications_description">Notificaciones de descargas</string>
+    <string name="failed_thumbnail">Fallo la descarga de miniatura</string>
+    <string name="external_player_mpvkt_description">Un reproductor basado en mpv-android para proveer una interfaz mas atractiva que la original.</string>
+    <string name="failed_information">Fallo la obtención de información del contenido</string>
+    <string name="failed_network_method_check">Por favor, revisa los métodos de descarga permitidos</string>
+    <string name="yes">Si</string>
+    <string name="no">No</string>
+    <string name="thumbnail_desc">Miniatura</string>
+    <string name="stored_videos_in_internal_storage_desc">Los contenidos, como películas y series, serán guardados en el almacenamiento interno, para visualizar con la App.</string>
+    <string name="downloading_desc">Descargando %1$d elementos</string>
+    <string name="downloaded">Descargado %1$s</string>
+    <string name="skip_media_segment">Saltar</string>
+    <string name="store_videos_in_internal_storage">Guardar contenido en almacenamiento interno</string>
+    <string name="tv_show_desc">%1$s - T%2$dE%3$d</string>
+    <string name="special_episode">Especial</string>
 </resources>

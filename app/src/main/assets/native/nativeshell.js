@@ -1,24 +1,26 @@
 const features = [
-    "filedownload",
+    "castmenuhashchange",
+    "clientsettings",
     "displaylanguage",
-    "subtitleappearancesettings",
-    "subtitleburnsettings",
-    //'sharing',
+    "downloadmanagement",
     "exit",
+    "externallinks",
+    "filedownload",
+    "fileinput",
     "htmlaudioautoplay",
     "htmlvideoautoplay",
-    "externallinks",
-    "clientsettings",
     "multiserver",
     "physicalvolumecontrol",
     "remotecontrol",
-    "castmenuhashchange"
+    "subtitleappearancesettings",
+    "subtitleburnsettings"
 ];
 
 const plugins = [
     'NavigationPlugin',
     'ExoPlayerPlugin',
-    'ExternalPlayerPlugin'
+    'ExternalPlayerPlugin',
+    'MediaSegmentsPlugin'
 ];
 
 // Add plugin loaders
@@ -29,10 +31,8 @@ for (const plugin of plugins) {
     };
 }
 
-let deviceId;
-let deviceName;
-let appName;
-let appVersion;
+const { deviceId, deviceName, appName, appVersion } = JSON.parse(window.NativeInterface.getDeviceInformation());
+const codecCaps = JSON.parse(window.NativeInterface.getCodecCapabilities());
 
 window.NativeShell = {
     enableFullscreen() {
@@ -65,6 +65,10 @@ window.NativeShell = {
 
     downloadFiles(downloadInfo) {
         window.NativeInterface.downloadFiles(JSON.stringify(downloadInfo));
+    },
+
+    openDownloadManager() {
+        window.NativeInterface.openDownloadManager();
     },
 
     openClientSettings() {
@@ -128,7 +132,7 @@ function getDeviceProfile(profileBuilder, item) {
             {
                 Condition: "LessThanEqual",
                 Property: "VideoLevel",
-                Value: "41"
+                Value: codecCaps.h264MaxLevel
             }]
     });
 
@@ -144,30 +148,16 @@ function getDeviceProfile(profileBuilder, item) {
 }
 
 window.NativeShell.AppHost = {
-    init() {
-        try {
-            const result = JSON.parse(window.NativeInterface.getDeviceInformation());
-            // set globally so they can be used elsewhere
-            deviceId = result.deviceId;
-            deviceName = result.deviceName;
-            appName = result.appName;
-            appVersion = result.appVersion;
-
-            return Promise.resolve({
-                deviceId,
-                deviceName,
-                appName,
-                appVersion,
-            });
-        } catch (e) {
-            return Promise.reject(e);
-        }
-    },
+    init() {},
     getDefaultLayout() {
         return "mobile";
     },
     supports(command) {
-        return features.includes(command.toLowerCase());
+        command = command.toLowerCase();
+        if (command === "chromecast") {
+            return window.NativeInterface.hasChromecast();
+        }
+        return features.includes(command);
     },
     getDeviceProfile,
     getSyncProfile: getDeviceProfile,

@@ -10,11 +10,12 @@ import android.content.IntentFilter
 import android.graphics.Bitmap
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
-import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewModelScope
-import coil.ImageLoader
-import coil.request.ImageRequest
-import com.google.android.exoplayer2.Player
+import androidx.media3.common.Player
+import coil3.ImageLoader
+import coil3.request.ImageRequest
+import coil3.request.allowHardware
+import coil3.toBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -24,6 +25,8 @@ import org.jellyfin.mobile.R
 import org.jellyfin.mobile.app.AppPreferences
 import org.jellyfin.mobile.player.PlayerViewModel
 import org.jellyfin.mobile.player.source.JellyfinMediaSource
+import org.jellyfin.mobile.player.source.LocalJellyfinMediaSource
+import org.jellyfin.mobile.player.source.RemoteJellyfinMediaSource
 import org.jellyfin.mobile.utils.AndroidVersion
 import org.jellyfin.mobile.utils.Constants
 import org.jellyfin.mobile.utils.Constants.VIDEO_PLAYER_NOTIFICATION_ID
@@ -62,11 +65,11 @@ class PlayerNotificationHelper(private val viewModel: PlayerViewModel) : KoinCom
         }
     }
 
-    @Suppress("DEPRECATION", "LongMethod")
+    @Suppress("DEPRECATION", "CyclomaticComplexMethod", "LongMethod")
     fun postNotification() {
         val nm = notificationManager ?: return
         val player = viewModel.playerOrNull ?: return
-        val currentMediaSource = viewModel.queueManager.currentMediaSourceOrNull ?: return
+        val currentMediaSource = viewModel.queueManager.getCurrentMediaSourceOrNull() ?: return
         val hasPrevious = viewModel.queueManager.hasPrevious()
         val hasNext = viewModel.queueManager.hasNext()
         val playbackState = player.playbackState
@@ -76,10 +79,6 @@ class PlayerNotificationHelper(private val viewModel: PlayerViewModel) : KoinCom
         context.createMediaNotificationChannel(nm)
 
         viewModel.viewModelScope.launch {
-            val mediaIcon: Bitmap? = withContext(Dispatchers.IO) {
-                loadImage(currentMediaSource)
-            }
-
             val style = Notification.MediaStyle().apply {
                 setMediaSession(viewModel.mediaSession.sessionToken)
                 setShowActionsInCompactView(0, 1, 2)
@@ -93,11 +92,20 @@ class PlayerNotificationHelper(private val viewModel: PlayerViewModel) : KoinCom
                 } else {
                     setPriority(Notification.PRIORITY_LOW)
                 }
-                setSmallIcon(R.drawable.ic_notification)
-                mediaIcon?.let(::setLargeIcon)
-                setContentTitle(currentMediaSource.name)
-                currentMediaSource.item?.artists?.joinToString()?.let(::setContentText)
                 setStyle(style)
+                setSmallIcon(R.drawable.ic_notification)
+                if (!AndroidVersion.isAtLeastQ) {
+                    val mediaIcon: Bitmap? = withContext(Dispatchers.IO) {
+                        loadImage(currentMediaSource)
+                    }
+                    if (mediaIcon != null) {
+                        setLargeIcon(mediaIcon)
+                    }
+                }
+                setContentTitle(currentMediaSource.getName(context))
+                currentMediaSource.item?.artists?.joinToString()?.let { artists ->
+                    setContentText(artists)
+                }
                 setVisibility(Notification.VISIBILITY_PUBLIC)
                 when {
                     hasPrevious -> addAction(generateAction(PlayerNotificationAction.PREVIOUS))
@@ -143,17 +151,24 @@ class PlayerNotificationHelper(private val viewModel: PlayerViewModel) : KoinCom
         }
     }
 
-    private suspend fun loadImage(mediaSource: JellyfinMediaSource): Bitmap? {
-        val size = context.resources.getDimensionPixelSize(R.dimen.media_notification_height)
+    private suspend fun loadImage(mediaSource: JellyfinMediaSource) = when (mediaSource) {
+        is LocalJellyfinMediaSource -> null
+        is RemoteJellyfinMediaSource -> {
+            val height = context.resources.getDimensionPixelSize(R.dimen.media_notification_height)
 
-        val imageUrl = imageApi.getItemImageUrl(
-            itemId = mediaSource.itemId,
-            imageType = ImageType.PRIMARY,
-            maxWidth = size,
-            maxHeight = size,
-        )
-        val imageRequest = ImageRequest.Builder(context).data(imageUrl).build()
-        return imageLoader.execute(imageRequest).drawable?.toBitmap()
+            val imageUrl = imageApi.getItemImageUrl(
+                itemId = mediaSource.itemId,
+                imageType = ImageType.PRIMARY,
+                fillHeight = height,
+                tag = mediaSource.item?.imageTags?.get(ImageType.PRIMARY),
+            )
+
+            val imageRequest = ImageRequest.Builder(context)
+                .data(imageUrl)
+                .allowHardware(false)
+                .build()
+            imageLoader.execute(imageRequest).image?.toBitmap()
+        }
     }
 
     private fun generateAction(playerNotificationAction: PlayerNotificationAction): Notification.Action {

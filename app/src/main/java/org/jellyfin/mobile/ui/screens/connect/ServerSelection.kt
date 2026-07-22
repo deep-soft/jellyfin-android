@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.Icon
@@ -27,9 +26,8 @@ import androidx.compose.material.ListItem
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Text
-import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -112,6 +110,8 @@ fun ServerSelection(
     }
 
     fun onSubmit() {
+        if (checkUrlState == CheckUrlState.Pending) return
+
         externalError = false
         checkUrlState = CheckUrlState.Pending
         coroutineScope.launch {
@@ -270,25 +270,6 @@ private fun AnimatedErrorText(
 
 @Stable
 @Composable
-private fun StyledTextButton(
-    text: String,
-    enabled: Boolean = true,
-    onClick: () -> Unit,
-) {
-    TextButton(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        enabled = enabled,
-        colors = ButtonDefaults.buttonColors(),
-    ) {
-        Text(text = text)
-    }
-}
-
-@Stable
-@Composable
 private fun ServerDiscoveryList(
     serverSuggestions: SnapshotStateList<ServerSuggestion>,
     onGoBack: () -> Unit,
@@ -299,7 +280,7 @@ private fun ServerDiscoveryList(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onGoBack) {
-                Icon(imageVector = Icons.Outlined.ArrowBack, contentDescription = null)
+                Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = null)
             }
             Text(
                 modifier = Modifier

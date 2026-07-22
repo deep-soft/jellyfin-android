@@ -1,13 +1,20 @@
 package org.jellyfin.mobile.player.deviceprofile
 
 import android.media.MediaCodecList
+import android.media.MediaFormat
 import org.jellyfin.mobile.app.AppPreferences
 import org.jellyfin.mobile.utils.Constants
+import org.json.JSONObject
 import org.jellyfin.sdk.model.api.CodecProfile
+import org.jellyfin.sdk.model.api.CodecType
 import org.jellyfin.sdk.model.api.ContainerProfile
 import org.jellyfin.sdk.model.api.DeviceProfile
 import org.jellyfin.sdk.model.api.DirectPlayProfile
 import org.jellyfin.sdk.model.api.DlnaProfileType
+import org.jellyfin.sdk.model.api.MediaStreamProtocol
+import org.jellyfin.sdk.model.api.ProfileCondition
+import org.jellyfin.sdk.model.api.ProfileConditionType
+import org.jellyfin.sdk.model.api.ProfileConditionValue
 import org.jellyfin.sdk.model.api.SubtitleDeliveryMethod
 import org.jellyfin.sdk.model.api.SubtitleProfile
 import org.jellyfin.sdk.model.api.TranscodingProfile
@@ -17,6 +24,8 @@ class DeviceProfileBuilder(
 ) {
     private val supportedVideoCodecs: Array<Array<String>>
     private val supportedAudioCodecs: Array<Array<String>>
+    private val videoCodecsProfiles: Map<String, Set<String>>
+    private val maxAvcRawLevel: Int
 
     private val transcodingProfiles: List<TranscodingProfile>
 
@@ -28,12 +37,21 @@ class DeviceProfileBuilder(
         // Load Android-supported codecs
         val videoCodecs: MutableMap<String, DeviceCodec.Video> = HashMap()
         val audioCodecs: MutableMap<String, DeviceCodec.Audio> = HashMap()
+        var maxAvcLevel = 0
         val androidCodecs = MediaCodecList(MediaCodecList.REGULAR_CODECS)
         for (codecInfo in androidCodecs.codecInfos) {
             if (codecInfo.isEncoder) continue
 
             for (mimeType in codecInfo.supportedTypes) {
-                val codec = DeviceCodec.from(codecInfo.getCapabilitiesForType(mimeType)) ?: continue
+                val capabilities = codecInfo.getCapabilitiesForType(mimeType)
+
+                if (mimeType == MediaFormat.MIMETYPE_VIDEO_AVC) {
+                    for (pl in capabilities.profileLevels) {
+                        if (pl.level > maxAvcLevel) maxAvcLevel = pl.level
+                    }
+                }
+
+                val codec = DeviceCodec.from(capabilities) ?: continue
                 val name = codec.name
                 when (codec) {
                     is DeviceCodec.Video -> {
@@ -53,6 +71,7 @@ class DeviceProfileBuilder(
                 }
             }
         }
+        maxAvcRawLevel = maxAvcLevel
 
         // Build map of supported codecs from device support and hardcoded data
         supportedVideoCodecs = Array(AVAILABLE_VIDEO_CODECS.size) { i ->
@@ -65,6 +84,7 @@ class DeviceProfileBuilder(
                 audioCodecs.containsKey(codec) || codec in FORCED_AUDIO_CODECS
             }.toTypedArray()
         }
+        videoCodecsProfiles = videoCodecs.entries.associate { (k, v) -> k to v.profiles }
 
         transcodingProfiles = listOf(
             TranscodingProfile(
@@ -72,7 +92,7 @@ class DeviceProfileBuilder(
                 container = "ts",
                 videoCodec = "h264",
                 audioCodec = "mp1,mp2,mp3,aac,ac3,eac3,dts,mlp,truehd",
-                protocol = "hls",
+                protocol = MediaStreamProtocol.HLS,
                 conditions = emptyList(),
             ),
             TranscodingProfile(
@@ -80,7 +100,7 @@ class DeviceProfileBuilder(
                 container = "mkv",
                 videoCodec = "h264",
                 audioCodec = AVAILABLE_AUDIO_CODECS[SUPPORTED_CONTAINER_FORMATS.indexOf("mkv")].joinToString(","),
-                protocol = "hls",
+                protocol = MediaStreamProtocol.HLS,
                 conditions = emptyList(),
             ),
             TranscodingProfile(
@@ -88,7 +108,7 @@ class DeviceProfileBuilder(
                 container = "mp3",
                 videoCodec = "",
                 audioCodec = "mp3",
-                protocol = "http",
+                protocol = MediaStreamProtocol.HTTP,
                 conditions = emptyList(),
             ),
         )
@@ -102,18 +122,25 @@ class DeviceProfileBuilder(
         for (i in SUPPORTED_CONTAINER_FORMATS.indices) {
             val container = SUPPORTED_CONTAINER_FORMATS[i]
             if (supportedVideoCodecs[i].isNotEmpty()) {
-                containerProfiles.add(ContainerProfile(type = DlnaProfileType.VIDEO, container = container))
+                containerProfiles.add(
+                    ContainerProfile(type = DlnaProfileType.VIDEO, container = container, conditions = emptyList()),
+                )
                 directPlayProfiles.add(
                     DirectPlayProfile(
                         type = DlnaProfileType.VIDEO,
-                        container = SUPPORTED_CONTAINER_FORMATS[i],
+                        container = container,
                         videoCodec = supportedVideoCodecs[i].joinToString(","),
                         audioCodec = supportedAudioCodecs[i].joinToString(","),
                     ),
                 )
+                for (videoCodec in supportedVideoCodecs[i]) {
+                    generateCodecProfile(container, videoCodec)?.let(codecProfiles::add)
+                }
             }
             if (supportedAudioCodecs[i].isNotEmpty()) {
-                containerProfiles.add(ContainerProfile(type = DlnaProfileType.AUDIO, container = container))
+                containerProfiles.add(
+                    ContainerProfile(type = DlnaProfileType.AUDIO, container = container, conditions = emptyList()),
+                )
                 directPlayProfiles.add(
                     DirectPlayProfile(
                         type = DlnaProfileType.AUDIO,
@@ -141,11 +168,31 @@ class DeviceProfileBuilder(
             maxStreamingBitrate = MAX_STREAMING_BITRATE,
             maxStaticBitrate = MAX_STATIC_BITRATE,
             musicStreamingTranscodingBitrate = MAX_MUSIC_TRANSCODING_BITRATE,
+        )
+    }
 
-            // TODO: remove redundant defaults after API/SDK is fixed
-            supportedMediaTypes = "",
-            xmlRootAttributes = emptyList(),
-            responseProfiles = emptyList(),
+    private fun generateCodecProfile(
+        container: String,
+        videoCodec: String,
+    ): CodecProfile? {
+        val profilesSet = videoCodecsProfiles[videoCodec]
+        if (profilesSet?.isNotEmpty() != true) {
+            return null
+        }
+
+        return CodecProfile(
+            type = CodecType.VIDEO,
+            container = container,
+            codec = videoCodec,
+            applyConditions = listOf(),
+            conditions = listOf(
+                ProfileCondition(
+                    condition = ProfileConditionType.EQUALS_ANY,
+                    property = ProfileConditionValue.VIDEO_PROFILE,
+                    value = profilesSet.joinToString("|"),
+                    isRequired = false,
+                ),
+            ),
         )
     }
 
@@ -161,8 +208,8 @@ class DeviceProfileBuilder(
     fun getExternalPlayerProfile(): DeviceProfile = DeviceProfile(
         name = EXTERNAL_PLAYER_PROFILE_NAME,
         directPlayProfiles = listOf(
-            DirectPlayProfile(type = DlnaProfileType.VIDEO),
-            DirectPlayProfile(type = DlnaProfileType.AUDIO),
+            DirectPlayProfile(type = DlnaProfileType.VIDEO, container = ""),
+            DirectPlayProfile(type = DlnaProfileType.AUDIO, container = ""),
         ),
         transcodingProfiles = emptyList(),
         containerProfiles = emptyList(),
@@ -178,15 +225,15 @@ class DeviceProfileBuilder(
         maxStreamingBitrate = Int.MAX_VALUE,
         maxStaticBitrate = Int.MAX_VALUE,
         musicStreamingTranscodingBitrate = Int.MAX_VALUE,
-
-        // TODO: remove redundant defaults after API/SDK is fixed
-        supportedMediaTypes = "",
-        xmlRootAttributes = emptyList(),
-        responseProfiles = emptyList(),
     )
+
+    fun getWebCodecCapabilitiesJson(): String = JSONObject().apply {
+        put("h264MaxLevel", CodecHelpers.getVideoLevel("h264", maxAvcRawLevel)?.toString() ?: DEFAULT_H264_MAX_LEVEL)
+    }.toString()
 
     companion object {
         private const val EXTERNAL_PLAYER_PROFILE_NAME = Constants.APP_INFO_NAME + " External Player"
+        private const val DEFAULT_H264_MAX_LEVEL = "41"
 
         /**
          * List of container formats supported by ExoPlayer
@@ -209,7 +256,7 @@ class DeviceProfileBuilder(
             // webm
             arrayOf("vp8", "vp9", "av1"),
             // mkv
-            arrayOf("mpeg1video", "mpeg2video", "h263", "mpeg4", "h264", "hevc", "av1", "vp8", "vp9", "av1"),
+            arrayOf("mpeg1video", "mpeg2video", "h263", "mpeg4", "h264", "hevc", "av1", "vp8", "vp9"),
             // mp3
             emptyArray(),
             // ogg
@@ -282,7 +329,9 @@ class DeviceProfileBuilder(
         private val EXO_EMBEDDED_SUBTITLES = arrayOf("dvbsub", "pgssub", "srt", "subrip", "ttml")
         private val EXO_EXTERNAL_SUBTITLES = arrayOf("srt", "subrip", "ttml", "vtt", "webvtt")
         private val SUBTITLES_SSA = arrayOf("ssa", "ass")
-        private val EXTERNAL_PLAYER_SUBTITLES = arrayOf("ass", "dvbsub", "pgssub", "srt", "srt", "ssa", "subrip", "subrip", "ttml", "ttml", "vtt", "webvtt")
+        private val EXTERNAL_PLAYER_SUBTITLES = arrayOf(
+            "ass", "dvbsub", "pgssub", "srt", "srt", "ssa", "subrip", "subrip", "ttml", "ttml", "vtt", "webvtt",
+        )
 
         /**
          * Taken from Jellyfin Web:

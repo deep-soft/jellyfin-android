@@ -4,11 +4,11 @@ import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.webkit.JavascriptInterface
 import android.widget.Toast
 import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.net.toUri
 import androidx.core.text.isDigitsOnly
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.MainScope
@@ -64,6 +64,7 @@ class ExternalPlayer(
             Constants.MPV_PLAYER_RESULT_ACTION -> handleMPVPlayer(resultCode, intent)
             Constants.MX_PLAYER_RESULT_ACTION -> handleMXPlayer(resultCode, intent)
             Constants.VLC_PLAYER_RESULT_ACTION -> handleVLCPlayer(resultCode, intent)
+            Constants.MPVKT_PLAYER_RESULT_ACTION -> handleMPVKTPlayer(resultCode, intent)
             else -> {
                 if (action != null && resultCode != Activity.RESULT_CANCELED) {
                     Timber.d("Unknown action $action [resultCode=$resultCode]")
@@ -98,7 +99,7 @@ class ExternalPlayer(
                 itemId = itemId,
                 mediaSourceId = playOptions.mediaSourceId,
                 deviceProfile = externalPlayerProfile,
-                startTimeTicks = playOptions.startPositionTicks,
+                startTime = playOptions.startPosition,
                 audioStreamIndex = playOptions.audioStreamIndex,
                 subtitleStreamIndex = playOptions.subtitleStreamIndex,
                 maxStreamingBitrate = Int.MAX_VALUE, // ensure we always direct play
@@ -136,9 +137,9 @@ class ExternalPlayer(
             if (context.packageManager.isPackageInstalled(appPreferences.externalPlayerApp)) {
                 component = getComponent(appPreferences.externalPlayerApp)
             }
-            setDataAndType(Uri.parse(url), "video/*")
-            putExtra("title", source.name)
-            putExtra("position", source.startTimeMs.toInt())
+            setDataAndType(url.toUri(), "video/*")
+            putExtra("title", source.getName(context))
+            putExtra("position", source.startTime.inWholeMilliseconds.toInt())
             putExtra("return_result", true)
             putExtra("secure_uri", true)
 
@@ -154,20 +155,20 @@ class ExternalPlayer(
 
             // MX Player API / MPV
             val subtitleUris = externalSubs.map { stream ->
-                Uri.parse(apiClient.createUrl(stream.deliveryUrl))
+                apiClient.createUrl(stream.deliveryUrl).toUri()
             }
             putExtra("subs", subtitleUris.toTypedArray())
             putExtra("subs.name", externalSubs.map(ExternalSubtitleStream::displayTitle).toTypedArray())
             putExtra("subs.filename", externalSubs.map(ExternalSubtitleStream::language).toTypedArray())
-            putExtra("subs.enable", enabledSubUrl?.let { url -> arrayOf(Uri.parse(url)) } ?: emptyArray())
+            putExtra("subs.enable", enabledSubUrl?.let { url -> arrayOf(url.toUri()) } ?: emptyArray())
 
             // VLC
             if (enabledSubUrl != null) putExtra("subtitles_location", enabledSubUrl)
         }
         playerContract.launch(playerIntent)
         Timber.d(
-            "Starting playback [id=${source.itemId}, title=${source.name}, " +
-                "playMethod=${source.playMethod}, startTimeMs=${source.startTimeMs}]",
+            "Starting playback [id=${source.itemId}, title=${source.getName(context)}, " +
+                "playMethod=${source.playMethod}, startTime=${source.startTime}]",
         )
     }
 
@@ -182,15 +183,22 @@ class ExternalPlayer(
         val player = "MPV Player"
         when (resultCode) {
             Activity.RESULT_OK -> {
-                val position = data.getIntExtra("position", 0)
-                if (position > 0) {
-                    Timber.d("Playback stopped [player=$player, position=$position]")
-                    notifyEvent(Constants.EVENT_TIME_UPDATE, "$position")
-                    notifyEvent(Constants.EVENT_ENDED)
-                } else {
-                    Timber.d("Playback completed [player=$player]")
-                    notifyEvent(Constants.EVENT_TIME_UPDATE)
-                    notifyEvent(Constants.EVENT_ENDED)
+                val position = data.getIntExtra("position", -1)
+                when {
+                    position > 0 -> {
+                        Timber.d("Playback stopped [player=$player, position=$position]")
+                        notifyEvent(Constants.EVENT_TIME_UPDATE, "$position")
+                        notifyEvent(Constants.EVENT_ENDED)
+                    }
+                    position == 0 -> {
+                        Timber.d("Playback canceled [player=$player]")
+                        notifyEvent(Constants.EVENT_CANCELED)
+                    }
+                    else -> {
+                        Timber.d("Playback completed [player=$player]")
+                        notifyEvent(Constants.EVENT_TIME_UPDATE)
+                        notifyEvent(Constants.EVENT_ENDED)
+                    }
                 }
             }
             Activity.RESULT_CANCELED -> {
@@ -218,16 +226,23 @@ class ExternalPlayer(
                         notifyEvent(Constants.EVENT_ENDED)
                     }
                     "user" -> {
-                        val position = data.getIntExtra("position", 0)
-                        val duration = data.getIntExtra("duration", 0)
-                        if (position > 0) {
-                            Timber.d("Playback stopped [player=$player, position=$position, duration=$duration]")
-                            notifyEvent(Constants.EVENT_TIME_UPDATE, "$position")
-                            notifyEvent(Constants.EVENT_ENDED)
-                        } else {
-                            Timber.d("Invalid state [player=$player, position=$position, duration=$duration]")
-                            notifyEvent(Constants.EVENT_CANCELED)
-                            context.toast(R.string.external_player_unknown_error, Toast.LENGTH_LONG)
+                        val position = data.getIntExtra("position", -1)
+                        val duration = data.getIntExtra("duration", -1)
+                        when {
+                            position > 0 -> {
+                                Timber.d("Playback stopped [player=$player, position=$position, duration=$duration]")
+                                notifyEvent(Constants.EVENT_TIME_UPDATE, "$position")
+                                notifyEvent(Constants.EVENT_ENDED)
+                            }
+                            position == 0 -> {
+                                Timber.d("Playback canceled [player=$player, position=$position, duration=$duration]")
+                                notifyEvent(Constants.EVENT_CANCELED)
+                            }
+                            else -> {
+                                Timber.d("Invalid state [player=$player, position=$position, duration=$duration]")
+                                notifyEvent(Constants.EVENT_CANCELED)
+                                context.toast(R.string.external_player_unknown_error, Toast.LENGTH_LONG)
+                            }
                         }
                     }
                     else -> {
@@ -259,30 +274,64 @@ class ExternalPlayer(
         val player = "VLC Player"
         when (resultCode) {
             Activity.RESULT_OK -> {
-                val extraPosition = data.getLongExtra("extra_position", 0L)
-                val extraDuration = data.getLongExtra("extra_duration", 0L)
-                if (extraPosition > 0L) {
-                    Timber.d(
-                        "Playback stopped [player=$player, extraPosition=$extraPosition, extraDuration=$extraDuration]",
-                    )
-                    notifyEvent(Constants.EVENT_TIME_UPDATE, "$extraPosition")
-                    notifyEvent(Constants.EVENT_ENDED)
-                } else {
-                    if (extraDuration == 0L && extraPosition == 0L) {
+                val extraPosition = data.getLongExtra("extra_position", -1L)
+                val extraDuration = data.getLongExtra("extra_duration", -1L)
+                when {
+                    extraDuration == extraPosition -> {
                         Timber.d("Playback completed [player=$player]")
                         notifyEvent(Constants.EVENT_TIME_UPDATE)
                         notifyEvent(Constants.EVENT_ENDED)
-                    } else {
+                    }
+                    extraPosition > 0L -> {
                         Timber.d(
-                            "Invalid state [player=$player, extraPosition=$extraPosition, extraDuration=$extraDuration]",
+                            "Playback stopped [player=$player, extraPosition=$extraPosition, extraDuration=$extraDuration]",
+                        )
+                        notifyEvent(Constants.EVENT_TIME_UPDATE, "$extraPosition")
+                        notifyEvent(Constants.EVENT_ENDED)
+                    }
+                    else -> {
+                        Timber.d(
+                            "Playback canceled [player=$player, extraPosition=$extraPosition, extraDuration=$extraDuration]",
                         )
                         notifyEvent(Constants.EVENT_CANCELED)
-                        context.toast(R.string.external_player_unknown_error, Toast.LENGTH_LONG)
+                        if (extraPosition == -1L) {
+                            context.toast(R.string.external_player_unknown_error, Toast.LENGTH_LONG)
+                        }
                     }
                 }
             }
             else -> {
                 Timber.d("Playback failed [player=$player, resultCode=$resultCode]")
+                notifyEvent(Constants.EVENT_CANCELED)
+                context.toast(R.string.external_player_unknown_error, Toast.LENGTH_LONG)
+            }
+        }
+    }
+
+    private fun handleMPVKTPlayer(resultCode: Int, data: Intent) {
+        val player = "mpvKt Player"
+        when (resultCode) {
+            Activity.RESULT_OK -> {
+                val position = data.getIntExtra("position", -1)
+                when {
+                    position > 0 -> {
+                        Timber.d("Playback stopped [player=$player, position=$position]")
+                        notifyEvent(Constants.EVENT_TIME_UPDATE, "$position")
+                        notifyEvent(Constants.EVENT_ENDED)
+                    }
+                    position == 0 -> {
+                        Timber.d("Playback canceled [player=$player]")
+                        notifyEvent(Constants.EVENT_CANCELED)
+                    }
+                    else -> {
+                        Timber.d("Playback completed [player=$player]")
+                        notifyEvent(Constants.EVENT_TIME_UPDATE)
+                        notifyEvent(Constants.EVENT_ENDED)
+                    }
+                }
+            }
+            else -> {
+                Timber.d("Invalid state [player=$player, resultCode=$resultCode]")
                 notifyEvent(Constants.EVENT_CANCELED)
                 context.toast(R.string.external_player_unknown_error, Toast.LENGTH_LONG)
             }
@@ -302,6 +351,9 @@ class ExternalPlayer(
             }
             ExternalPlayerPackage.VLC_PLAYER -> {
                 ComponentName(packageName, "$packageName.StartActivity")
+            }
+            ExternalPlayerPackage.MPVKT_PLAYER -> {
+                ComponentName(packageName, "$packageName.ui.player.PlayerActivity")
             }
             else -> null
         }

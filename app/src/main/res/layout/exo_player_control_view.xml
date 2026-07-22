@@ -29,6 +29,19 @@
         android:src="@drawable/ic_skip_previous_black_32dp"
         android:tint="?android:textColorPrimary"
         app:layout_constraintBottom_toBottomOf="@id/play_pause_container"
+        app:layout_constraintEnd_toStartOf="@id/previous_chapter_button"
+        app:layout_constraintTop_toTopOf="@id/play_pause_container" />
+
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/previous_chapter_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="@dimen/exo_center_controls_distance"
+        android:background="@drawable/ripple_background_circular"
+        android:padding="@dimen/exo_center_icon_padding"
+        android:src="@drawable/ic_skip_previous_chapter_black_32dp"
+        android:tint="?android:textColorPrimary"
+        app:layout_constraintBottom_toBottomOf="@id/play_pause_container"
         app:layout_constraintEnd_toStartOf="@id/play_pause_container"
         app:layout_constraintTop_toTopOf="@id/play_pause_container" />
 
@@ -42,24 +55,26 @@
         app:layout_constraintTop_toTopOf="parent">
 
         <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/exo_play"
+            android:id="@+id/exo_play_pause"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/ripple_background_circular"
             android:padding="@dimen/exo_center_icon_padding"
-            android:src="@drawable/ic_play_black_42dp"
             android:tint="?android:textColorPrimary" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/exo_pause"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/ripple_background_circular"
-            android:padding="@dimen/exo_center_icon_padding"
-            android:src="@drawable/ic_pause_black_42dp"
-            android:tint="?android:textColorPrimary"
-            tools:visibility="gone" />
     </FrameLayout>
+
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/next_chapter_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/exo_center_controls_distance"
+        android:background="@drawable/ripple_background_circular"
+        android:padding="@dimen/exo_center_icon_padding"
+        android:src="@drawable/ic_skip_next_chapter_black_32dp"
+        android:tint="?android:textColorPrimary"
+        app:layout_constraintBottom_toBottomOf="@id/play_pause_container"
+        app:layout_constraintStart_toEndOf="@id/play_pause_container"
+        app:layout_constraintTop_toTopOf="@id/play_pause_container" />
 
     <androidx.appcompat.widget.AppCompatImageButton
         android:id="@+id/next_button"
@@ -71,7 +86,7 @@
         android:src="@drawable/ic_skip_next_black_32dp"
         android:tint="?android:textColorPrimary"
         app:layout_constraintBottom_toBottomOf="@id/play_pause_container"
-        app:layout_constraintStart_toEndOf="@id/play_pause_container"
+        app:layout_constraintStart_toEndOf="@id/next_chapter_button"
         app:layout_constraintTop_toTopOf="@id/play_pause_container" />
 
     <androidx.appcompat.widget.AppCompatTextView
@@ -80,13 +95,13 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="@dimen/exo_player_controls_display_padding"
         android:textColor="?android:textColorPrimary"
-        app:layout_constraintBottom_toBottomOf="@id/exo_progress"
+        app:layout_constraintBottom_toBottomOf="@id/seek_bar_container"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/exo_progress"
+        app:layout_constraintTop_toTopOf="@id/seek_bar_container"
         tools:text="33:01" />
 
-    <com.google.android.exoplayer2.ui.DefaultTimeBar
-        android:id="@+id/exo_progress"
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/seek_bar_container"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
@@ -94,11 +109,34 @@
         android:layout_marginBottom="4dp"
         app:layout_constraintBottom_toTopOf="@id/controls_barrier"
         app:layout_constraintEnd_toStartOf="@id/exo_duration"
-        app:layout_constraintStart_toEndOf="@id/exo_position"
-        app:played_color="?colorAccent"
-        app:scrubber_color="?colorAccent"
-        app:scrubber_dragged_size="24dp"
-        app:scrubber_enabled_size="16dp" />
+        app:layout_constraintStart_toEndOf="@id/exo_position">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/chapter_marking_container"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_marginStart="11dp"
+            android:layout_marginEnd="11dp"
+            android:orientation="horizontal"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"></androidx.constraintlayout.widget.ConstraintLayout>
+
+        <androidx.media3.ui.DefaultTimeBar
+            android:id="@+id/exo_progress"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:played_color="?colorAccent"
+            app:scrubber_color="?colorAccent"
+            app:scrubber_dragged_size="24dp"
+            app:scrubber_enabled_size="16dp"
+            app:unplayed_color="@color/playback_timebar_unplayed" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
     <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/exo_duration"
@@ -106,9 +144,9 @@
         android:layout_height="wrap_content"
         android:layout_marginEnd="@dimen/exo_player_controls_display_padding"
         android:textColor="?android:textColorPrimary"
-        app:layout_constraintBottom_toBottomOf="@id/exo_progress"
+        app:layout_constraintBottom_toBottomOf="@id/seek_bar_container"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@id/exo_progress"
+        app:layout_constraintTop_toTopOf="@id/seek_bar_container"
         tools:text="0:49:04" />
 
     <androidx.constraintlayout.widget.Barrier
@@ -207,4 +245,61 @@
         android:src="@drawable/ic_fullscreen_enter_white_32dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
+
+    <FrameLayout
+        android:id="@+id/trickplay_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:background="#282828"
+        android:elevation="8dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/seek_bar_container"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <androidx.appcompat.widget.AppCompatImageView
+            android:id="@+id/trickplay_thumbnail"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/trickplay_thumbnail_height"
+            android:scaleType="fitXY" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:orientation="vertical"
+            android:paddingStart="8dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="8dp">
+
+            <androidx.appcompat.widget.AppCompatTextView
+                android:id="@+id/trickplay_chapter_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:alpha="0.9"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:shadowColor="#FF000000"
+                android:shadowDx="0"
+                android:shadowDy="0"
+                android:shadowRadius="6"
+                android:textColor="@android:color/white"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <androidx.appcompat.widget.AppCompatTextView
+                android:id="@+id/trickplay_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:shadowColor="#FF000000"
+                android:shadowDx="0"
+                android:shadowDy="0"
+                android:shadowRadius="6"
+                android:textColor="@android:color/white"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </FrameLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

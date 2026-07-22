@@ -20,12 +20,13 @@ import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
+import androidx.core.view.setPadding
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
-import com.google.android.exoplayer2.Player
-import com.google.android.exoplayer2.ui.PlayerView
+import androidx.media3.common.Player
+import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.jellyfin.mobile.R
@@ -35,6 +36,7 @@ import org.jellyfin.mobile.databinding.FragmentPlayerBinding
 import org.jellyfin.mobile.player.PlayerException
 import org.jellyfin.mobile.player.PlayerViewModel
 import org.jellyfin.mobile.player.interaction.PlayOptions
+import org.jellyfin.mobile.player.ui.playermenuhelper.PlayerMenuHelper
 import org.jellyfin.mobile.utils.AndroidVersion
 import org.jellyfin.mobile.utils.BackPressInterceptor
 import org.jellyfin.mobile.utils.Constants
@@ -48,10 +50,13 @@ import org.jellyfin.mobile.utils.extensions.getParcelableCompat
 import org.jellyfin.mobile.utils.extensions.isLandscape
 import org.jellyfin.mobile.utils.extensions.keepScreenOn
 import org.jellyfin.mobile.utils.toast
+import org.jellyfin.sdk.model.api.MediaSegmentDto
 import org.jellyfin.sdk.model.api.MediaStream
 import org.koin.android.ext.android.inject
-import com.google.android.exoplayer2.ui.R as ExoplayerR
+import kotlin.math.max
+import androidx.media3.ui.R as Media3R
 
+@Suppress("TooManyFunctions")
 class PlayerFragment : Fragment(), BackPressInterceptor {
     private val appPreferences: AppPreferences by inject()
     private val viewModel: PlayerViewModel by viewModels()
@@ -87,10 +92,16 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val window = requireActivity().window
+        playerFullscreenHelper = PlayerFullscreenHelper(window)
+
         // Observe ViewModel
         viewModel.player.observe(this) { player ->
             playerView.player = player
-            if (player == null) parentFragmentManager.popBackStack()
+            // Automatically close fragment, unless we're in PiP mode
+            if (player == null && !(AndroidVersion.isAtLeastN && requireActivity().isInPictureInPictureMode)) {
+                parentFragmentManager.popBackStack()
+            }
         }
         viewModel.playerState.observe(this) { playerState ->
             val isPlaying = viewModel.playerOrNull?.isPlaying == true
@@ -114,7 +125,7 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
             }
 
             // Update title and player menus
-            toolbar.title = mediaSource.name
+            toolbar.title = mediaSource.getName(requireContext())
             playerMenus?.onQueueItemChanged(mediaSource, viewModel.queueManager.hasNext())
         }
 
@@ -143,7 +154,6 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        val window = requireActivity().window
 
         // Insets handling
         ViewCompat.setOnApplyWindowInsetsListener(playerBinding.root) { _, insets ->
@@ -153,15 +163,26 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
                 AndroidVersion.isAtLeastR -> insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.systemBars())
                 else -> insets.getInsets(WindowInsetsCompat.Type.systemBars())
             }
-            playerControlsView.updatePadding(
-                top = systemInsets.top,
-                left = systemInsets.left,
-                right = systemInsets.right,
-                bottom = systemInsets.bottom,
-            )
+            if (playerFullscreenHelper.isFullscreen) {
+                playerView.setPadding(0)
+                playerControlsView.updatePadding(
+                    left = max(insets.displayCutout?.safeInsetLeft ?: 0, systemInsets.left),
+                    top = max(insets.displayCutout?.safeInsetTop ?: 0, systemInsets.top),
+                    right = max(insets.displayCutout?.safeInsetRight ?: 0, systemInsets.right),
+                    bottom = max(insets.displayCutout?.safeInsetBottom ?: 0, systemInsets.bottom),
+                )
+            } else {
+                playerView.updatePadding(
+                    left = systemInsets.left,
+                    top = systemInsets.top,
+                    right = systemInsets.right,
+                    bottom = systemInsets.bottom,
+                )
+                playerControlsView.setPadding(0) // Padding is handled by PlayerView
+            }
             playerOverlay.updatePadding(
-                top = systemInsets.top,
                 left = systemInsets.left,
+                top = systemInsets.top,
                 right = systemInsets.right,
                 bottom = systemInsets.bottom,
             )
@@ -175,7 +196,6 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
 
             insets
         }
-        ViewCompat.requestApplyInsets(view)
 
         // Handle toolbar back button
         toolbar.setNavigationOnClickListener { parentFragmentManager.popBackStack() }
@@ -186,7 +206,9 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
         // Set controller timeout
         suppressControllerAutoHide(false)
 
-        playerFullscreenHelper = PlayerFullscreenHelper(window)
+        // Disable controller animations
+        playerView.setControllerAnimationEnabled(false)
+
         playerLockScreenHelper = PlayerLockScreenHelper(this, playerBinding, orientationListener)
         playerGestureHelper = PlayerGestureHelper(this, playerBinding, playerLockScreenHelper)
 
@@ -208,17 +230,11 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
         if (isLandscape()) {
             playerFullscreenHelper.enableFullscreen()
         }
-    }
 
-    /**
-     * Exit fullscreen on first back-button press, otherwise exit directly
-     */
-    override fun onInterceptBackPressed(): Boolean = when {
-        playerFullscreenHelper.isFullscreen -> {
-            toggleFullscreen()
-            true
+        // If playback ended during picture in picture we'll return to the main app when PiP is closed
+        if (viewModel.playerOrNull == null) {
+            parentFragmentManager.popBackStack()
         }
-        else -> super.onInterceptBackPressed()
     }
 
     /**
@@ -250,7 +266,7 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
      */
     private fun toggleFullscreen() {
         val videoTrack = currentVideoStream
-        if (videoTrack == null || videoTrack.width!! >= videoTrack.height!!) {
+        if (videoTrack == null || videoTrack.isLandscape) {
             val current = resources.configuration.orientation
             requireActivity().requestedOrientation = when (current) {
                 Configuration.ORIENTATION_PORTRAIT -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -277,6 +293,12 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
     fun onRewind() = viewModel.rewind()
 
     fun onFastForward() = viewModel.fastForward()
+
+    fun onSeekByOffset(offsetMs: Long) = viewModel.seekByOffset(offsetMs)
+
+    fun onPreviousChapter() = viewModel.previousChapter()
+
+    fun onNextChapter() = viewModel.nextChapter()
 
     /**
      * @param callback called if track selection was successful and UI needs to be updated
@@ -316,6 +338,10 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
         return viewModel.setPlaybackSpeed(speed)
     }
 
+    fun onPressSpeedUp(isPressing: Boolean): Boolean {
+        return viewModel.setPressSpeedUp(isPressing, Constants.HOLD_SPEEDUP_MULTIPLIER)
+    }
+
     fun onDecoderSelected(type: DecoderType) {
         viewModel.updateDecoderType(type)
     }
@@ -328,6 +354,10 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
         viewModel.skipToNext()
     }
 
+    fun onSkipMediaSegment(mediaSegmentDto: MediaSegmentDto?) {
+        viewModel.skipMediaSegment(mediaSegmentDto)
+    }
+
     fun onPopupDismissed() {
         if (!AndroidVersion.isAtLeastR) {
             updateFullscreenState(resources.configuration)
@@ -335,7 +365,7 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
     }
 
     fun onUserLeaveHint() {
-        if (AndroidVersion.isAtLeastN && viewModel.playerOrNull?.isPlaying == true) {
+        if (AndroidVersion.isAtLeastN && viewModel.playerOrNull != null) {
             requireActivity().enterPictureInPicture()
         }
     }
@@ -353,7 +383,7 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
                     }
                 }
                 setAspectRatio(aspectRational)
-                val contentFrame: View = playerView.findViewById(ExoplayerR.id.exo_content_frame)
+                val contentFrame: View = playerView.findViewById(Media3R.id.exo_content_frame)
                 val contentRect = with(contentFrame) {
                     val (x, y) = intArrayOf(0, 0).also(::getLocationInWindow)
                     Rect(x, y, x + width, y + height)
@@ -408,5 +438,9 @@ class PlayerFragment : Fragment(), BackPressInterceptor {
             // Reset screen brightness
             window.brightness = BRIGHTNESS_OVERRIDE_NONE
         }
+    }
+
+    fun setPlayerMenuHelper(menuHelper: PlayerMenuHelper) {
+        viewModel.setPlayerMenuHelper(menuHelper)
     }
 }

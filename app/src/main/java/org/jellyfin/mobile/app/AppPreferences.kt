@@ -2,13 +2,15 @@ package org.jellyfin.mobile.app
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.os.Environment
 import android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
 import androidx.core.content.edit
+import org.jellyfin.mobile.downloads.DownloadMethod
+import org.jellyfin.mobile.player.mediasegments.MediaSegmentAction
+import org.jellyfin.mobile.player.mediasegments.toMediaSegmentActionsString
 import org.jellyfin.mobile.settings.ExternalPlayerPackage
 import org.jellyfin.mobile.settings.VideoPlayerType
 import org.jellyfin.mobile.utils.Constants
-import java.io.File
+import org.jellyfin.sdk.model.api.MediaSegmentType
 
 class AppPreferences(context: Context) {
     private val sharedPreferences: SharedPreferences =
@@ -54,54 +56,54 @@ class AppPreferences(context: Context) {
             }
         }
 
-    var downloadMethod: Int?
-        get() = sharedPreferences.getInt(Constants.PREF_DOWNLOAD_METHOD, -1).takeIf { it >= 0 }
-        set(value) {
-            if (value != null) {
-                sharedPreferences.edit {
-                    putInt(Constants.PREF_DOWNLOAD_METHOD, value)
-                }
-            }
-        }
-
-    var downloadLocation: String
-        get() {
-            val savedStorage = sharedPreferences.getString(Constants.PREF_DOWNLOAD_LOCATION, null)
-            if (savedStorage != null) {
-                if (File(savedStorage).parentFile?.isDirectory == true) {
-                    // Saved location is still valid
-                    return savedStorage
-                } else {
-                    // Reset download option if corrupt
-                    sharedPreferences.edit {
-                        remove(Constants.PREF_DOWNLOAD_LOCATION)
-                    }
-                }
-            }
-
-            // Return default storage location
-            return Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).absolutePath
-        }
+    var downloadMethod: DownloadMethod
+        get() = DownloadMethod.fromInt(sharedPreferences.getInt(Constants.PREF_DOWNLOAD_METHOD, -1)) ?: DownloadMethod.DEFAULT
         set(value) {
             sharedPreferences.edit {
-                if (File(value).parentFile?.isDirectory == true) {
-                    putString(Constants.PREF_DOWNLOAD_LOCATION, value)
+                putInt(Constants.PREF_DOWNLOAD_METHOD, value.intValue)
+            }
+        }
+
+    var storageLocation: String?
+        get() = sharedPreferences.getString(Constants.PREF_STORAGE_LOCATION, null)
+        set(value) {
+            sharedPreferences.edit {
+                if (value == null) {
+                    remove(Constants.PREF_STORAGE_LOCATION)
+                } else {
+                    putString(Constants.PREF_STORAGE_LOCATION, value)
                 }
             }
         }
+
+    /**
+     * The actions to take for each media segment type. Managed by the MediaSegmentRepository.
+     */
+    var mediaSegmentActions: String
+        get() = sharedPreferences.getString(
+            Constants.PREF_MEDIA_SEGMENT_ACTIONS,
+            mapOf(
+                MediaSegmentType.INTRO to MediaSegmentAction.ASK_TO_SKIP,
+                MediaSegmentType.OUTRO to MediaSegmentAction.ASK_TO_SKIP,
+            ).toMediaSegmentActionsString(),
+        )!!
+        set(value) = sharedPreferences.edit { putString(Constants.PREF_MEDIA_SEGMENT_ACTIONS, value) }
 
     val musicNotificationAlwaysDismissible: Boolean
         get() = sharedPreferences.getBoolean(Constants.PREF_MUSIC_NOTIFICATION_ALWAYS_DISMISSIBLE, false)
 
     @VideoPlayerType
     val videoPlayerType: String
-        get() = sharedPreferences.getString(Constants.PREF_VIDEO_PLAYER_TYPE, VideoPlayerType.WEB_PLAYER)!!
+        get() = sharedPreferences.getString(Constants.PREF_VIDEO_PLAYER_TYPE, VideoPlayerType.EXO_PLAYER)!!
 
     val exoPlayerStartLandscapeVideoInLandscape: Boolean
         get() = sharedPreferences.getBoolean(Constants.PREF_EXOPLAYER_START_LANDSCAPE_VIDEO_IN_LANDSCAPE, false)
 
     val exoPlayerAllowSwipeGestures: Boolean
         get() = sharedPreferences.getBoolean(Constants.PREF_EXOPLAYER_ALLOW_SWIPE_GESTURES, true)
+
+    val exoPlayerAllowPressSpeedUp: Boolean
+        get() = sharedPreferences.getBoolean(Constants.PREF_EXOPLAYER_ALLOW_PRESS_SPEED_UP, true)
 
     val exoPlayerRememberBrightness: Boolean
         get() = sharedPreferences.getBoolean(Constants.PREF_EXOPLAYER_REMEMBER_BRIGHTNESS, false)
@@ -117,8 +119,14 @@ class AppPreferences(context: Context) {
     val exoPlayerAllowBackgroundAudio: Boolean
         get() = sharedPreferences.getBoolean(Constants.PREF_EXOPLAYER_ALLOW_BACKGROUND_AUDIO, false)
 
+    val exoPlayerAllowHorizontalGesture: Boolean
+        get() = sharedPreferences.getBoolean(Constants.PREF_EXOPLAYER_ALLOW_HORIZONTAL_GESTURE, true)
+
     val exoPlayerDirectPlayAss: Boolean
         get() = sharedPreferences.getBoolean(Constants.PREF_EXOPLAYER_DIRECT_PLAY_ASS, false)
+
+    val exoPlayerNetworkBuffer: String
+        get() = sharedPreferences.getString(Constants.PREF_EXOPLAYER_NETWORK_BUFFER, Constants.NETWORK_BUFFER_AUTO)!!
 
     @ExternalPlayerPackage
     var externalPlayerApp: String

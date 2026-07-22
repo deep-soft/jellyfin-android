@@ -8,7 +8,7 @@ import org.jellyfin.mobile.BuildConfig
 @Suppress("MagicNumber")
 object Constants {
     // App Info
-    const val APP_INFO_NAME = "Jellyfin Android"
+    const val APP_INFO_NAME = "Jellyfin for Android"
     const val APP_INFO_VERSION: String = BuildConfig.VERSION_NAME
 
     // Webapp constants
@@ -18,7 +18,6 @@ object Constants {
     val MAIN_BUNDLE_PATH_REGEX = Regex(""".*/main\.[^/\s]+\.bundle\.js""")
     const val CAST_SDK_PATH = "cast_sender.js"
     const val SESSION_CAPABILITIES_PATH = "sessions/capabilities/full"
-    const val SERVICE_WORKER_PATH = "serviceworker.js"
 
     const val FRAGMENT_CONNECT_EXTRA_ERROR = "org.jellyfin.mobile.intent.extra.ERROR"
     const val FRAGMENT_WEB_VIEW_EXTRA_SERVER = "org.jellyfin.mobile.intent.extra.SERVER"
@@ -35,17 +34,25 @@ object Constants {
     const val PREF_VIDEO_PLAYER_TYPE = "pref_video_player_type"
     const val PREF_EXOPLAYER_START_LANDSCAPE_VIDEO_IN_LANDSCAPE = "pref_exoplayer_start_landscape_video_in_landscape"
     const val PREF_EXOPLAYER_ALLOW_SWIPE_GESTURES = "pref_exoplayer_allow_swipe_gestures"
+    const val PREF_EXOPLAYER_ALLOW_PRESS_SPEED_UP = "pref_exoplayer_allow_press_speed_up"
     const val PREF_EXOPLAYER_REMEMBER_BRIGHTNESS = "pref_exoplayer_remember_brightness"
     const val PREF_EXOPLAYER_BRIGHTNESS = "pref_exoplayer_brightness"
     const val PREF_EXOPLAYER_ALLOW_BACKGROUND_AUDIO = "pref_exoplayer_allow_background_audio"
+    const val PREF_EXOPLAYER_ALLOW_HORIZONTAL_GESTURE = "pref_exoplayer_allow_horizontal_gesture"
     const val PREF_EXOPLAYER_DIRECT_PLAY_ASS = "pref_exoplayer_direct_play_ass"
+    const val PREF_EXOPLAYER_NETWORK_BUFFER = "pref_exoplayer_network_buffer"
+    const val NETWORK_BUFFER_AUTO = "auto"
+    const val NETWORK_BUFFER_LARGE = "large"
+    const val NETWORK_BUFFER_EXTRA_LARGE = "extra_large"
     const val PREF_EXTERNAL_PLAYER_APP = "pref_external_player_app"
     const val PREF_SUBTITLE_STYLE = "pref_subtitle_style"
-    const val PREF_DOWNLOAD_LOCATION = "pref_download_location"
+    const val PREF_STORAGE_LOCATION = "pref_storage_location"
+    const val PREF_MEDIA_SEGMENT_ACTIONS = "pref_media_segment_actions"
 
     // InputManager commands
     const val PLAYBACK_MANAGER_COMMAND_PLAY = "unpause"
     const val PLAYBACK_MANAGER_COMMAND_PAUSE = "pause"
+    const val PLAYBACK_MANAGER_COMMAND_PLAY_PAUSE = "playPause"
     const val PLAYBACK_MANAGER_COMMAND_PREVIOUS = "previousTrack"
     const val PLAYBACK_MANAGER_COMMAND_NEXT = "nextTrack"
     const val PLAYBACK_MANAGER_COMMAND_REWIND = "rewind"
@@ -60,6 +67,7 @@ object Constants {
         else -> 0
     }
     const val MEDIA_NOTIFICATION_CHANNEL_ID = "org.jellyfin.mobile.media.NOW_PLAYING"
+    const val DOWNLOAD_NOTIFICATION_CHANNEL_ID = "org.jellyfin.mobile.download.DOWNLOAD_PROGRESS"
 
     // Music player constants
     const val SUPPORTED_MUSIC_PLAYER_PLAYBACK_ACTIONS: Long = PlaybackState.ACTION_PLAY_PAUSE or
@@ -98,11 +106,16 @@ object Constants {
 
     // Video player constants
     const val LANGUAGE_UNDEFINED = "und"
-    const val TICKS_PER_MILLISECOND = 10000
     const val PLAYER_TIME_UPDATE_RATE = 10000L
+    const val CHAPTER_MARKING_UPDATE_DELAY = 1000L
+    const val SKIP_MEDIA_SEGMENT_UPDATE_DELAY = 1000L
     const val DEFAULT_CONTROLS_TIMEOUT_MS = 2500
     const val SWIPE_GESTURE_EXCLUSION_SIZE_VERTICAL = 64
     const val DEFAULT_CENTER_OVERLAY_TIMEOUT_MS = 250
+    const val SWIPE_GESTURE_EXCLUSION_SIZE_HORIZONTAL = 48
+    const val HORIZONTAL_SWIPE_DISTANCE_PER_SECOND = 20 // base pixels needed to swipe for 1 second seek
+    const val SEEK_ACCELERATION_FACTOR = 2.5f // acceleration factor for non-linear seek
+    const val SEEK_ACCELERATION_FACTOR_PORTRAIT = 5.0f
     const val DISPLAY_PREFERENCES_ID_USER_SETTINGS = "usersettings"
     const val DISPLAY_PREFERENCES_CLIENT_EMBY = "emby"
     const val DISPLAY_PREFERENCES_SKIP_BACK_LENGTH = "skipBackLength"
@@ -112,6 +125,7 @@ object Constants {
     const val DOUBLE_TAP_RIPPLE_DURATION_MS = 100L
     const val FULL_SWIPE_RANGE_SCREEN_RATIO = 0.66f
     const val SCREEN_BRIGHTNESS_MAX = 255
+    const val HOLD_SPEEDUP_MULTIPLIER = 3f
     const val ZOOM_SCALE_BASE = 1f
     const val ZOOM_SCALE_THRESHOLD = 0.01f
     val ASPECT_RATIO_16_9 = Rational(16, 9)
@@ -125,6 +139,10 @@ object Constants {
         PlaybackState.ACTION_FAST_FORWARD or
         PlaybackState.ACTION_STOP
     const val VIDEO_PLAYER_NOTIFICATION_ID = 99
+    const val DOWNLOAD_NOTIFICATION_ID = 80
+    const val MAX_SKIP_TO_PREV_CHAPTER_MS = 10_000L
+    const val TICKS_PER_MILLISECOND = 10_000L
+    const val TRICKPLAY_TILE_REFRESH_WINDOW_MS = 100L
 
     // Video player intent extras
     const val EXTRA_MEDIA_PLAY_OPTIONS = "org.jellyfin.mobile.MEDIA_PLAY_OPTIONS"
@@ -133,6 +151,7 @@ object Constants {
     const val MPV_PLAYER_RESULT_ACTION = "is.xyz.mpv.MPVActivity.result"
     const val MX_PLAYER_RESULT_ACTION = "com.mxtech.intent.result.VIEW"
     const val VLC_PLAYER_RESULT_ACTION = "org.videolan.vlc.player.result"
+    const val MPVKT_PLAYER_RESULT_ACTION = "live.mehiz.mpvkt.ui.player.PlayerActivity.result"
 
     // External player webapp events
     const val EVENT_ENDED = "Ended"
@@ -145,4 +164,5 @@ object Constants {
 
     // Misc
     const val PERCENT_MAX = 100
+    const val DOWNLOAD_PATH = "/MediaCache/"
 }
