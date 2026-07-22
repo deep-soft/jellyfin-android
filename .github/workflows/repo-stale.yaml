@@ -1,10 +1,9 @@
 name: Repo / Reply stale issue
 
 on:
+  schedule:
+    - cron: '30 3 * * *'
   workflow_dispatch:
-#  schedule:
-#    - cron: '30 3 * * *'
-#  workflow_dispatch:
 
 permissions:
   issues: write
@@ -13,10 +12,10 @@ permissions:
 jobs:
   triage:
     name: Triage
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: ${{ contains(github.repository_owner, 'jellyfin') }}
     steps:
-      - uses: actions/stale@28ca1036281a5e5922ead5184a1bbf96e5fc984e # v9.0.0
+      - uses: actions/stale@1e223db275d687790206a7acac4d1a11bd6fe629 # v10.4.0
         with:
           repo-token: ${{ secrets.JF_BOT_TOKEN }}
           days-before-stale: 120
